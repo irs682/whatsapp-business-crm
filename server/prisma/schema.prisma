@@ -1,0 +1,546 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------
+// ENUMS
+// -------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ConversationStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum Channel {
+  WHATSAPP
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  DOCUMENT
+  AUDIO
+  STICKER
+  LOCATION
+  TEMPLATE
+  INTERACTIVE
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum CampaignStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum TemplateCategory {
+  MARKETING
+  UTILITY
+  AUTHENTICATION
+}
+
+enum TemplateStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum ConsentStatus {
+  GRANTED
+  REVOKED
+  PENDING
+}
+
+// -------------------------------------------------------------
+// IDENTITY & RBAC
+// -------------------------------------------------------------
+
+model User {
+  id              String           @id @default(uuid())
+  email           String           @unique
+  passwordHash    String           @map("password_hash")
+  firstName       String           @map("first_name")
+  lastName        String           @map("last_name")
+  phone           String?
+  avatarUrl       String?          @map("avatar_url")
+  status          UserStatus       @default(ACTIVE)
+  roleId          String           @map("role_id")
+  role            Role             @relation(fields: [roleId], references: [id])
+  
+  // Relations
+  departments     UserDepartment[]
+  assignedConversations Conversation[] @relation("AssignedAgent")
+  assignedLeads   Lead[]           @relation("AssignedLeadAgent")
+  assignedTasks   Task[]           @relation("AssignedTaskAgent")
+  createdTasks    Task[]           @relation("CreatedTasks")
+  notes           Note[]
+  campaigns       Campaign[]
+  auditLogs       AuditLog[]       @relation("ActorAuditLogs")
+  notifications   Notification[]
+  messagesSent    Message[]        @relation("UserSentMessages")
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  @@index([roleId])
+  @@index([status])
+  @@index([email])
+  @@map("users")
+}
+
+model Role {
+  id              String           @id @default(uuid())
+  name            String           @unique
+  description     String?
+  isSystem        Boolean          @default(false) @map("is_system")
+  
+  users           User[]
+  rolePermissions RolePermission[]
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@map("roles")
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  slug            String           @unique
+  name            String
+  module          String
+  description     String?
+
+  rolePermissions RolePermission[]
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id")
+  permissionId String     @map("permission_id")
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// -------------------------------------------------------------
+// DEPARTMENTS
+// -------------------------------------------------------------
+
+model Department {
+  id              String           @id @default(uuid())
+  name            String           @unique
+  description     String?
+  isActive        Boolean          @default(true) @map("is_active")
+
+  users           UserDepartment[]
+  conversations   Conversation[]
+  leads           Lead[]
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  @@map("departments")
+}
+
+model UserDepartment {
+  userId        String     @map("user_id")
+  departmentId  String     @map("department_id")
+  isPrimary     Boolean    @default(false) @map("is_primary")
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  @@id([userId, departmentId])
+  @@map("user_departments")
+}
+
+// -------------------------------------------------------------
+// CRM CORE: CONTACTS & LEADS
+// -------------------------------------------------------------
+
+model Contact {
+  id              String           @id @default(uuid())
+  phone           String           @unique
+  waId            String?          @unique @map("wa_id")
+  firstName       String?          @map("first_name")
+  lastName        String?          @map("last_name")
+  email           String?
+  avatarUrl       String?          @map("avatar_url")
+  tags            String[]         @default([])
+  customFields    Json?            @map("custom_fields")
+  
+  // Consent tracking
+  consentStatus   ConsentStatus    @default(PENDING) @map("consent_status")
+  isOptedOut      Boolean          @default(false) @map("is_opted_out")
+  optOutAt        DateTime?        @map("opt_out_at")
+
+  // Relations
+  conversations   Conversation[]
+  leads           Lead[]
+  notes           Note[]
+  tasks           Task[]
+  consents        Consent[]
+  campaignsReceived CampaignRecipient[]
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  @@index([phone])
+  @@index([waId])
+  @@index([email])
+  @@index([consentStatus])
+  @@map("contacts")
+}
+
+model Lead {
+  id              String       @id @default(uuid())
+  contactId       String       @map("contact_id")
+  title           String
+  value           Decimal?     @db.Decimal(12, 2)
+  currency        String       @default("USD")
+  stage           LeadStage    @default(NEW)
+  source          String?
+  assignedToUserId String?     @map("assigned_to_user_id")
+  departmentId    String?      @map("department_id")
+
+  contact         Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignedToUser  User?        @relation("AssignedLeadAgent", fields: [assignedToUserId], references: [id])
+  department      Department?  @relation(fields: [departmentId], references: [id])
+  notes           Note[]
+  tasks           Task[]
+
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+
+  @@index([contactId])
+  @@index([stage])
+  @@index([assignedToUserId])
+  @@map("leads")
+}
+
+// -------------------------------------------------------------
+// SHARED INBOX & CONVERSATIONS
+// -------------------------------------------------------------
+
+model Conversation {
+  id              String             @id @default(uuid())
+  contactId       String             @map("contact_id")
+  channel         Channel            @default(WHATSAPP)
+  status          ConversationStatus @default(OPEN)
+  assignedToUserId String?           @map("assigned_to_user_id")
+  departmentId    String?            @map("department_id")
+  unreadCount     Int                @default(0) @map("unread_count")
+  lastMessageAt   DateTime?          @map("last_message_at")
+  closedAt        DateTime?          @map("closed_at")
+
+  contact         Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignedToUser  User?              @relation("AssignedAgent", fields: [assignedToUserId], references: [id])
+  department      Department?        @relation(fields: [departmentId], references: [id])
+  messages        Message[]
+  notes           Note[]
+
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  deletedAt       DateTime?          @map("deleted_at")
+
+  @@index([contactId])
+  @@index([status])
+  @@index([assignedToUserId])
+  @@index([departmentId])
+  @@map("conversations")
+}
+
+model Message {
+  id              String           @id @default(uuid())
+  conversationId  String           @map("conversation_id")
+  direction       MessageDirection
+  type            MessageType      @default(TEXT)
+  text            String?
+  mediaUrl        String?          @map("media_url")
+  metadata        Json?
+  waMessageId     String?          @unique @map("wa_message_id")
+  status          MessageStatus    @default(QUEUED)
+  failureReason   String?          @map("failure_reason")
+
+  senderUserId    String?          @map("sender_user_id")
+  senderUser      User?            @relation("UserSentMessages", fields: [senderUserId], references: [id])
+
+  conversation    Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  campaignRecipients CampaignRecipient[]
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@index([conversationId])
+  @@index([waMessageId])
+  @@index([status])
+  @@map("messages")
+}
+
+// -------------------------------------------------------------
+// NOTES & TASKS
+// -------------------------------------------------------------
+
+model Note {
+  id              String        @id @default(uuid())
+  content         String
+  isInternal      Boolean       @default(true) @map("is_internal")
+  
+  authorId        String        @map("author_id")
+  contactId       String?       @map("contact_id")
+  leadId          String?       @map("lead_id")
+  conversationId  String?       @map("conversation_id")
+
+  author          User          @relation(fields: [authorId], references: [id])
+  contact         Contact?      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  lead            Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  @@index([contactId])
+  @@index([leadId])
+  @@index([conversationId])
+  @@map("notes")
+}
+
+model Task {
+  id              String        @id @default(uuid())
+  title           String
+  description     String?
+  dueDate         DateTime?     @map("due_date")
+  priority        TaskPriority  @default(MEDIUM)
+  status          TaskStatus    @default(PENDING)
+  completedAt     DateTime?     @map("completed_at")
+
+  creatorId       String        @map("creator_id")
+  assignedToUserId String?      @map("assigned_to_user_id")
+  contactId       String?       @map("contact_id")
+  leadId          String?       @map("lead_id")
+
+  creator         User          @relation("CreatedTasks", fields: [creatorId], references: [id])
+  assignedToUser  User?         @relation("AssignedTaskAgent", fields: [assignedToUserId], references: [id])
+  contact         Contact?      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  lead            Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  @@index([assignedToUserId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+// -------------------------------------------------------------
+// MARKETING & CAMPAIGNS
+// -------------------------------------------------------------
+
+model Campaign {
+  id              String           @id @default(uuid())
+  name            String
+  description     String?
+  templateId      String?          @map("template_id")
+  createdById     String           @map("created_by_id")
+  status          CampaignStatus   @default(DRAFT)
+  scheduledAt     DateTime?        @map("scheduled_at")
+  startedAt       DateTime?        @map("started_at")
+  completedAt     DateTime?        @map("completed_at")
+
+  totalRecipients Int              @default(0) @map("total_recipients")
+  sentCount       Int              @default(0) @map("sent_count")
+  deliveredCount  Int              @default(0) @map("delivered_count")
+  readCount       Int              @default(0) @map("read_count")
+  failedCount     Int              @default(0) @map("failed_count")
+
+  template        MessageTemplate? @relation(fields: [templateId], references: [id])
+  createdBy       User             @relation(fields: [createdById], references: [id])
+  recipients      CampaignRecipient[]
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  @@index([status])
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id            String         @id @default(uuid())
+  campaignId    String         @map("campaign_id")
+  contactId     String         @map("contact_id")
+  messageId     String?        @map("message_id")
+  status        MessageStatus  @default(QUEUED)
+  errorDetails  String?        @map("error_details")
+
+  campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact       Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  message       Message?       @relation(fields: [messageId], references: [id])
+
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  @@index([campaignId])
+  @@index([contactId])
+  @@map("campaign_recipients")
+}
+
+model MessageTemplate {
+  id              String           @id @default(uuid())
+  name            String           @unique
+  category        TemplateCategory @default(MARKETING)
+  language        String           @default("en_US")
+  body            String
+  headerType      String?          @map("header_type")
+  headerContent   String?          @map("header_content")
+  footerContent   String?          @map("footer_content")
+  buttons         Json?
+  status          TemplateStatus   @default(DRAFT)
+  metaTemplateId  String?          @map("meta_template_id")
+
+  campaigns       Campaign[]
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  @@index([category])
+  @@index([status])
+  @@map("message_templates")
+}
+
+model Consent {
+  id                String         @id @default(uuid())
+  contactId         String         @map("contact_id")
+  source            String
+  status            ConsentStatus  @default(GRANTED)
+  marketingEligible Boolean        @default(true) @map("marketing_eligible")
+  optOutAt          DateTime?      @map("opt_out_at")
+  proof             String?
+  ipAddress         String?        @map("ip_address")
+
+  contact           Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  @@index([contactId])
+  @@index([status])
+  @@map("consents")
+}
+
+// -------------------------------------------------------------
+// AUDIT LOGS & NOTIFICATIONS
+// -------------------------------------------------------------
+
+model AuditLog {
+  id            String    @id @default(uuid())
+  actorId       String?   @map("actor_id")
+  action        String
+  entity        String
+  entityId      String?   @map("entity_id")
+  previousState Json?     @map("previous_state")
+  newState      Json?     @map("new_state")
+  ipAddress     String?   @map("ip_address")
+  userAgent     String?   @map("user_agent")
+
+  actor         User?     @relation("ActorAuditLogs", fields: [actorId], references: [id])
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  title         String
+  body          String
+  type          String    @default("INFO")
+  isRead        Boolean   @default(false) @map("is_read")
+  link          String?
+  readAt        DateTime? @map("read_at")
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}

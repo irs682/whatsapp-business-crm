@@ -1,0 +1,5 @@
+const DEPARTMENT_CONSTANTS = {
+  DEFAULT_PAGE_SIZE: 20,
+};
+
+module.exports = DEPARTMENT_CONSTANTS;
