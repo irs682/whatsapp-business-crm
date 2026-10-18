@@ -10,13 +10,14 @@ class AuthService {
       throw new ConflictError('A user with this email already exists');
     }
 
-    let role = await authRepository.findRoleByName(data.roleName || 'AGENT');
+    const { ForbiddenError } = require('../../errors');
+    if (data.roleName && data.roleName !== 'AGENT') {
+      throw new ForbiddenError('Public self-registration cannot create privileged administrative accounts');
+    }
+
+    const role = await authRepository.findRoleByName('AGENT');
     if (!role) {
-      // Fallback to first available role or create if empty
-      role = await authRepository.findRoleByName('SUPER_ADMIN');
-      if (!role) {
-        throw new BadRequestError('Role specified is invalid and no default roles exist');
-      }
+      throw new BadRequestError('Default agent role is not configured');
     }
 
     const passwordHash = await hashPassword(data.password);

@@ -4,7 +4,7 @@ const ApiResponse = require('../../utils/apiResponse');
 class ContactController {
   async list(req, res, next) {
     try {
-      const result = await contactService.listContacts(req.query);
+      const result = await contactService.listContacts(req.query, req.user);
       return ApiResponse.success(res, 'Contacts fetched successfully', result.items, 200, result.pagination);
     } catch (error) {
       next(error);
@@ -13,7 +13,7 @@ class ContactController {
 
   async getById(req, res, next) {
     try {
-      const contact = await contactService.getContactById(req.params.id);
+      const contact = await contactService.getContactById(req.params.id, req.user);
       return ApiResponse.success(res, 'Contact fetched successfully', contact);
     } catch (error) {
       next(error);

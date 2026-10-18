@@ -6,7 +6,7 @@ const registerSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(50),
   lastName: z.string().min(1, 'Last name is required').max(50),
   phone: z.string().optional(),
-  roleName: z.string().optional().default('AGENT'),
+  roleName: z.enum(['AGENT']).optional().default('AGENT'),
 });
 
 const loginSchema = z.object({

@@ -25,11 +25,38 @@ class ContactService {
     return formatPaginatedResponse(items, total, page, limit);
   }
 
-  async getContactById(id) {
+  async getContactById(id, user) {
     const contact = await contactRepository.findById(id);
     if (!contact) {
       throw new NotFoundError('Contact not found');
     }
+
+    if (user && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+      const { ForbiddenError } = require('../../errors');
+      const userDeptIds = (user.departments || []).map((d) => d.id);
+
+      // Check if contact is exclusively associated with other departments
+      const conversationDeptIds = (contact.conversations || []).map((c) => c.departmentId).filter(Boolean);
+      const leadDeptIds = (contact.leads || []).map((l) => l.departmentId).filter(Boolean);
+      const allContactDeptIds = [...new Set([...conversationDeptIds, ...leadDeptIds])];
+
+      if (allContactDeptIds.length > 0 && !allContactDeptIds.some((deptId) => userDeptIds.includes(deptId))) {
+        throw new ForbiddenError('You do not have access to contacts belonging to unauthorized departments');
+      }
+
+      // Filter sub-resources by authorized departments
+      if (contact.conversations) {
+        contact.conversations = contact.conversations.filter(
+          (c) => !c.departmentId || userDeptIds.includes(c.departmentId) || c.assignedToUserId === user.id
+        );
+      }
+      if (contact.leads) {
+        contact.leads = contact.leads.filter(
+          (l) => !l.departmentId || userDeptIds.includes(l.departmentId) || l.assignedToUserId === user.id
+        );
+      }
+    }
+
     return contact;
   }
 
