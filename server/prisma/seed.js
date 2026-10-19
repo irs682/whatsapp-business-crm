@@ -46,11 +46,25 @@ async function main() {
     { slug: 'contacts:create', name: 'Create Contacts', module: 'contacts', description: 'Can create new contacts' },
     { slug: 'contacts:update', name: 'Update Contacts', module: 'contacts', description: 'Can update contact information' },
     { slug: 'contacts:delete', name: 'Delete Contacts', module: 'contacts', description: 'Can archive or remove contacts' },
+    // Tags
+    { slug: 'tags:read', name: 'View Tags', module: 'tags', description: 'Can view contact tags' },
+    { slug: 'tags:manage', name: 'Manage Tags', module: 'tags', description: 'Can create, edit and delete contact tags' },
     // Leads
     { slug: 'leads:read', name: 'View Leads', module: 'leads', description: 'Can view lead pipelines' },
     { slug: 'leads:create', name: 'Create Leads', module: 'leads', description: 'Can create leads' },
     { slug: 'leads:update', name: 'Update Leads', module: 'leads', description: 'Can advance lead stages and values' },
     { slug: 'leads:delete', name: 'Delete Leads', module: 'leads', description: 'Can delete leads' },
+    // Notes
+    { slug: 'notes:read', name: 'View Notes', module: 'notes', description: 'Can view internal notes' },
+    { slug: 'notes:create', name: 'Create Notes', module: 'notes', description: 'Can add internal notes' },
+    { slug: 'notes:delete', name: 'Delete Notes', module: 'notes', description: 'Can delete internal notes' },
+    // Tasks
+    { slug: 'tasks:read', name: 'View Tasks', module: 'tasks', description: 'Can view follow-up tasks' },
+    { slug: 'tasks:create', name: 'Create Tasks', module: 'tasks', description: 'Can create follow-up tasks' },
+    { slug: 'tasks:update', name: 'Update Tasks', module: 'tasks', description: 'Can edit and complete follow-up tasks' },
+    { slug: 'tasks:delete', name: 'Delete Tasks', module: 'tasks', description: 'Can delete follow-up tasks' },
+    // Dashboard
+    { slug: 'dashboard:read', name: 'View Dashboard', module: 'dashboard', description: 'Can view operational dashboard metrics' },
     // Conversations
     { slug: 'conversations:read', name: 'View Conversations', module: 'conversations', description: 'Can view customer conversations' },
     { slug: 'conversations:reply', name: 'Reply Messages', module: 'conversations', description: 'Can send messages to customers' },
@@ -90,9 +104,39 @@ async function main() {
       create: { roleId: roleMap.ADMIN.id, permissionId: perm.id },
     });
 
+    // MANAGER permissions
+    if (
+      [
+        'users:read', 'departments:read',
+        'contacts:read', 'contacts:create', 'contacts:update',
+        'tags:read', 'tags:manage',
+        'leads:read', 'leads:create', 'leads:update',
+        'notes:read', 'notes:create', 'notes:delete',
+        'tasks:read', 'tasks:create', 'tasks:update', 'tasks:delete',
+        'dashboard:read',
+        'conversations:read', 'conversations:reply', 'conversations:assign', 'conversations:close',
+        'campaigns:read', 'campaigns:create', 'campaigns:approve',
+        'reports:read', 'audit:read'
+      ].includes(perm.slug)
+    ) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: roleMap.MANAGER.id, permissionId: perm.id } },
+        update: {},
+        create: { roleId: roleMap.MANAGER.id, permissionId: perm.id },
+      });
+    }
+
     // AGENT permissions
     if (
-      ['contacts:read', 'contacts:create', 'contacts:update', 'leads:read', 'leads:create', 'leads:update', 'conversations:read', 'conversations:reply', 'conversations:close'].includes(perm.slug)
+      [
+        'contacts:read', 'contacts:create', 'contacts:update',
+        'tags:read',
+        'leads:read', 'leads:create', 'leads:update',
+        'notes:read', 'notes:create',
+        'tasks:read', 'tasks:create', 'tasks:update',
+        'dashboard:read',
+        'conversations:read', 'conversations:reply', 'conversations:close'
+      ].includes(perm.slug)
     ) {
       await prisma.rolePermission.upsert({
         where: { roleId_permissionId: { roleId: roleMap.AGENT.id, permissionId: perm.id } },
@@ -183,6 +227,42 @@ async function main() {
       create: { userId: agentUser.id, departmentId: depts[0].id, isPrimary: true },
     });
   }
+
+  // 7. Seed Default Contact Tags
+  const defaultTags = [
+    { name: 'VIP', color: '#8b5cf6', description: 'High-value enterprise customer' },
+    { name: 'Prospect', color: '#3b82f6', description: 'Potential lead evaluating solutions' },
+    { name: 'Customer', color: '#10b981', description: 'Active paying client' },
+    { name: 'Support', color: '#f59e0b', description: 'Technical inquiry in progress' },
+    { name: 'Partner', color: '#ec4899', description: 'Channel and integration partner' },
+  ];
+
+  for (const tag of defaultTags) {
+    await prisma.tag.upsert({
+      where: { name: tag.name },
+      update: { color: tag.color, description: tag.description },
+      create: tag,
+    });
+  }
+  console.log(`  Tags synced: ${defaultTags.length} default tags.`);
+
+  // 8. Seed Default Lead Pipeline Stages
+  const defaultStages = [
+    { name: 'NEW', order: 1, color: '#3b82f6', isDefault: true },
+    { name: 'CONTACTED', order: 2, color: '#06b6d4', isDefault: false },
+    { name: 'QUALIFIED', order: 3, color: '#10b981', isDefault: false },
+    { name: 'WON', order: 4, color: '#059669', isDefault: false },
+    { name: 'LOST', order: 5, color: '#ef4444', isDefault: false },
+  ];
+
+  for (const stage of defaultStages) {
+    await prisma.leadPipelineStage.upsert({
+      where: { name: stage.name },
+      update: { order: stage.order, color: stage.color, isDefault: stage.isDefault },
+      create: stage,
+    });
+  }
+  console.log(`  Lead Pipeline Stages synced: ${defaultStages.length} stages.`);
 
   console.log('✅ Seed completed successfully!');
 }

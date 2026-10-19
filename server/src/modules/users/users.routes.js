@@ -1,6 +1,12 @@
 const { Router } = require('express');
 const userController = require('./users.controller');
-const { createUserSchema, updateUserSchema, listUsersQuerySchema } = require('./users.validation');
+const {
+  createUserSchema,
+  updateUserSchema,
+  updateUserStatusSchema,
+  updateUserDepartmentsSchema,
+  listUsersQuerySchema,
+} = require('./users.validation');
 const validate = require('../../middleware/validate.middleware');
 const authenticate = require('../../middleware/auth.middleware');
 const { requirePermissions } = require('../../middleware/rbac.middleware');
@@ -35,6 +41,20 @@ router.patch(
   requirePermissions(PERMISSIONS.USERS_UPDATE),
   validate(updateUserSchema),
   (req, res, next) => userController.update(req, res, next)
+);
+
+router.patch(
+  '/:id/status',
+  requirePermissions(PERMISSIONS.USERS_UPDATE),
+  validate(updateUserStatusSchema),
+  (req, res, next) => userController.updateStatus(req, res, next)
+);
+
+router.put(
+  '/:id/departments',
+  requirePermissions(PERMISSIONS.USERS_UPDATE),
+  validate(updateUserDepartmentsSchema),
+  (req, res, next) => userController.updateDepartments(req, res, next)
 );
 
 router.delete(

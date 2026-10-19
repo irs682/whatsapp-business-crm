@@ -71,6 +71,7 @@ enum TaskPriority {
 }
 
 enum TaskStatus {
+  TODO
   PENDING
   IN_PROGRESS
   COMPLETED
@@ -125,13 +126,16 @@ model User {
   
   // Relations
   departments     UserDepartment[]
+  managedDepartments Department[]  @relation("DepartmentManager")
   assignedConversations Conversation[] @relation("AssignedAgent")
   assignedLeads   Lead[]           @relation("AssignedLeadAgent")
+  ownedContacts   Contact[]        @relation("AssignedContactOwner")
   assignedTasks   Task[]           @relation("AssignedTaskAgent")
   createdTasks    Task[]           @relation("CreatedTasks")
   notes           Note[]
   campaigns       Campaign[]
   auditLogs       AuditLog[]       @relation("ActorAuditLogs")
+  activityLogs    ActivityLog[]    @relation("ActorActivityLogs")
   notifications   Notification[]
   messagesSent    Message[]        @relation("UserSentMessages")
 
@@ -198,10 +202,13 @@ model Department {
   name            String           @unique
   description     String?
   isActive        Boolean          @default(true) @map("is_active")
+  managerId       String?          @map("manager_id")
+  manager         User?            @relation("DepartmentManager", fields: [managerId], references: [id])
 
   users           UserDepartment[]
   conversations   Conversation[]
   leads           Lead[]
+  contacts        Contact[]
 
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
@@ -225,7 +232,7 @@ model UserDepartment {
 }
 
 // -------------------------------------------------------------
-// CRM CORE: CONTACTS & LEADS
+// CRM CORE: CONTACTS & TAGS
 // -------------------------------------------------------------
 
 model Contact {
@@ -235,22 +242,32 @@ model Contact {
   firstName       String?          @map("first_name")
   lastName        String?          @map("last_name")
   email           String?
+  company         String?
+  source          String?          @default("DIRECT")
   avatarUrl       String?          @map("avatar_url")
-  tags            String[]         @default([])
+  tags            String[]         @default([]) // Denormalized quick tags
   customFields    Json?            @map("custom_fields")
   
+  // Access and Ownership
+  ownerId         String?          @map("owner_id")
+  owner           User?            @relation("AssignedContactOwner", fields: [ownerId], references: [id])
+  departmentId    String?          @map("department_id")
+  department      Department?      @relation(fields: [departmentId], references: [id])
+
   // Consent tracking
   consentStatus   ConsentStatus    @default(PENDING) @map("consent_status")
   isOptedOut      Boolean          @default(false) @map("is_opted_out")
   optOutAt        DateTime?        @map("opt_out_at")
 
   // Relations
+  contactTags     ContactTag[]
   conversations   Conversation[]
   leads           Lead[]
   notes           Note[]
   tasks           Task[]
   consents        Consent[]
   campaignsReceived CampaignRecipient[]
+  activityLogs    ActivityLog[]
 
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
@@ -260,33 +277,87 @@ model Contact {
   @@index([waId])
   @@index([email])
   @@index([consentStatus])
+  @@index([departmentId])
+  @@index([ownerId])
   @@map("contacts")
 }
 
-model Lead {
-  id              String       @id @default(uuid())
-  contactId       String       @map("contact_id")
-  title           String
-  value           Decimal?     @db.Decimal(12, 2)
-  currency        String       @default("USD")
-  stage           LeadStage    @default(NEW)
-  source          String?
-  assignedToUserId String?     @map("assigned_to_user_id")
-  departmentId    String?      @map("department_id")
+model Tag {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  color       String?      @default("#10b981")
+  description String?
+  contacts    ContactTag[]
 
-  contact         Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  assignedToUser  User?        @relation("AssignedLeadAgent", fields: [assignedToUserId], references: [id])
-  department      Department?  @relation(fields: [departmentId], references: [id])
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("tags")
+}
+
+model ContactTag {
+  contactId   String     @map("contact_id")
+  tagId       String     @map("tag_id")
+
+  contact     Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag         Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  @@id([contactId, tagId])
+  @@map("contact_tags")
+}
+
+// -------------------------------------------------------------
+// CRM CORE: LEADS & PIPELINE STAGES
+// -------------------------------------------------------------
+
+model LeadPipelineStage {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  order       Int      @default(0)
+  color       String?  @default("#3b82f6")
+  isDefault   Boolean  @default(false) @map("is_default")
+
+  leads       Lead[]
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("lead_pipeline_stages")
+}
+
+model Lead {
+  id              String             @id @default(uuid())
+  contactId       String             @map("contact_id")
+  title           String
+  description     String?
+  outcome         String?
+  value           Decimal?           @db.Decimal(12, 2)
+  currency        String             @default("USD")
+  stage           LeadStage          @default(NEW)
+  pipelineStageId String?            @map("pipeline_stage_id")
+  pipelineStage   LeadPipelineStage? @relation(fields: [pipelineStageId], references: [id])
+  source          String?
+  assignedToUserId String?           @map("assigned_to_user_id")
+  departmentId    String?            @map("department_id")
+
+  contact         Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignedToUser  User?              @relation("AssignedLeadAgent", fields: [assignedToUserId], references: [id])
+  department      Department?        @relation(fields: [departmentId], references: [id])
   notes           Note[]
   tasks           Task[]
+  activityLogs    ActivityLog[]
 
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
-  deletedAt       DateTime?    @map("deleted_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  deletedAt       DateTime?          @map("deleted_at")
 
   @@index([contactId])
   @@index([stage])
+  @@index([pipelineStageId])
   @@index([assignedToUserId])
+  @@index([departmentId])
   @@map("leads")
 }
 
@@ -375,6 +446,7 @@ model Note {
   @@index([contactId])
   @@index([leadId])
   @@index([conversationId])
+  @@index([authorId])
   @@map("notes")
 }
 
@@ -402,6 +474,9 @@ model Task {
   deletedAt       DateTime?     @map("deleted_at")
 
   @@index([assignedToUserId])
+  @@index([creatorId])
+  @@index([contactId])
+  @@index([leadId])
   @@index([status])
   @@index([dueDate])
   @@map("tasks")
@@ -505,8 +580,32 @@ model Consent {
 }
 
 // -------------------------------------------------------------
-// AUDIT LOGS & NOTIFICATIONS
+// AUDIT LOGS, ACTIVITY HISTORY & NOTIFICATIONS
 // -------------------------------------------------------------
+
+model ActivityLog {
+  id          String    @id @default(uuid())
+  actorId     String?   @map("actor_id")
+  action      String
+  entityType  String    @map("entity_type") // CONTACT, LEAD, TASK, NOTE
+  entityId    String    @map("entity_id")
+  contactId   String?   @map("contact_id")
+  leadId      String?   @map("lead_id")
+  description String?
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  actor       User?     @relation("ActorActivityLogs", fields: [actorId], references: [id])
+  contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  lead        Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([leadId])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
 
 model AuditLog {
   id            String    @id @default(uuid())

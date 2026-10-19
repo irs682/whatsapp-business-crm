@@ -54,6 +54,7 @@ class UserRepository {
         phone: true,
         avatarUrl: true,
         status: true,
+        roleId: true,
         role: {
           select: {
             id: true,
@@ -80,6 +81,31 @@ class UserRepository {
   async findByEmail(email) {
     return prisma.user.findUnique({
       where: { email },
+      include: {
+        role: true,
+      },
+    });
+  }
+
+  async findRoleById(id) {
+    return prisma.role.findUnique({
+      where: { id },
+    });
+  }
+
+  async findRoleByName(name) {
+    return prisma.role.findUnique({
+      where: { name },
+    });
+  }
+
+  async countActiveSuperAdmins() {
+    return prisma.user.count({
+      where: {
+        role: { name: 'SUPER_ADMIN' },
+        status: 'ACTIVE',
+        deletedAt: null,
+      },
     });
   }
 
@@ -110,7 +136,7 @@ class UserRepository {
         data,
       });
 
-      if (departmentIds) {
+      if (departmentIds !== undefined) {
         // Replace existing department assignments
         await tx.userDepartment.deleteMany({
           where: { userId: id },
@@ -128,6 +154,13 @@ class UserRepository {
       }
 
       return updatedUser;
+    });
+  }
+
+  async updateStatus(id, status) {
+    return prisma.user.update({
+      where: { id },
+      data: { status },
     });
   }
 

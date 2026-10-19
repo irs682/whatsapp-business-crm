@@ -38,6 +38,33 @@ class DepartmentController {
     }
   }
 
+  async getUsers(req, res, next) {
+    try {
+      const users = await departmentService.getDepartmentUsers(req.params.id);
+      return ApiResponse.success(res, 'Department users retrieved successfully', users);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async assignUser(req, res, next) {
+    try {
+      const assignment = await departmentService.assignUser(req.params.id, req.body);
+      return ApiResponse.created(res, 'User assigned to department successfully', assignment);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async removeUser(req, res, next) {
+    try {
+      await departmentService.removeUser(req.params.id, req.params.userId);
+      return ApiResponse.success(res, 'User removed from department successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async delete(req, res, next) {
     try {
       await departmentService.deleteDepartment(req.params.id);

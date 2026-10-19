@@ -9,10 +9,20 @@ class DepartmentRepository {
       },
       orderBy,
       include: {
+        manager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
         _count: {
           select: {
             users: true,
             conversations: true,
+            leads: true,
+            contacts: true,
           },
         },
       },
@@ -23,6 +33,14 @@ class DepartmentRepository {
     return prisma.department.findFirst({
       where: { id, deletedAt: null },
       include: {
+        manager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
         users: {
           include: {
             user: {
@@ -31,6 +49,7 @@ class DepartmentRepository {
                 firstName: true,
                 lastName: true,
                 email: true,
+                status: true,
                 role: true,
               },
             },
@@ -40,6 +59,7 @@ class DepartmentRepository {
           select: {
             conversations: true,
             leads: true,
+            contacts: true,
           },
         },
       },
@@ -47,14 +67,83 @@ class DepartmentRepository {
   }
 
   async findByName(name) {
-    return prisma.department.findUnique({
-      where: { name },
+    return prisma.department.findFirst({
+      where: { name, deletedAt: null },
     });
+  }
+
+  async getDepartmentUsers(departmentId) {
+    return prisma.userDepartment.findMany({
+      where: { departmentId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            status: true,
+            role: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async assignUser(departmentId, userId, isPrimary = false) {
+    return prisma.userDepartment.upsert({
+      where: { userId_departmentId: { userId, departmentId } },
+      update: { isPrimary },
+      create: { departmentId, userId, isPrimary },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  async removeUser(departmentId, userId) {
+    return prisma.userDepartment.delete({
+      where: { userId_departmentId: { userId, departmentId } },
+    });
+  }
+
+  async countActiveDependents(id) {
+    const [openConversations, activeLeads] = await Promise.all([
+      prisma.conversation.count({
+        where: {
+          departmentId: id,
+          status: { in: ['OPEN', 'PENDING'] },
+          deletedAt: null,
+        },
+      }),
+      prisma.lead.count({
+        where: {
+          departmentId: id,
+          deletedAt: null,
+        },
+      }),
+    ]);
+
+    return { openConversations, activeLeads, total: openConversations + activeLeads };
   }
 
   async create(data) {
     return prisma.department.create({
       data,
+      include: {
+        manager: true,
+      },
     });
   }
 
@@ -62,6 +151,9 @@ class DepartmentRepository {
     return prisma.department.update({
       where: { id },
       data,
+      include: {
+        manager: true,
+      },
     });
   }
 
