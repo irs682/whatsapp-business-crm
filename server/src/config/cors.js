@@ -7,7 +7,12 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    const allowedOrigins = [env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'];
+    const allowedOrigins = [
+      env.CLIENT_URL,
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      ...env.ALLOWED_ORIGINS,
+    ];
 
     // In development mode, allow localhost, 127.0.0.1, and local private network IPs
     const isDevelopment = env.NODE_ENV === 'development';

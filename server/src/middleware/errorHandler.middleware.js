@@ -34,6 +34,7 @@ const errorHandler = (err, req, res, next) => {
   const response = {
     success: false,
     message,
+    correlationId: req.correlationId,
     ...(errors.length > 0 && { errors }),
     ...(env.NODE_ENV === 'development' && { stack: err.stack }),
   };
