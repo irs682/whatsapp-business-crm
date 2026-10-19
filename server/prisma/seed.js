@@ -69,7 +69,11 @@ async function main() {
     { slug: 'conversations:read', name: 'View Conversations', module: 'conversations', description: 'Can view customer conversations' },
     { slug: 'conversations:reply', name: 'Reply Messages', module: 'conversations', description: 'Can send messages to customers' },
     { slug: 'conversations:assign', name: 'Assign Conversations', module: 'conversations', description: 'Can assign conversations to agents' },
+    { slug: 'conversations:transfer', name: 'Transfer Conversations', module: 'conversations', description: 'Can transfer chats between departments' },
     { slug: 'conversations:close', name: 'Close Conversations', module: 'conversations', description: 'Can resolve or close chats' },
+    // Quick Replies
+    { slug: 'quick_replies:read', name: 'View Quick Replies', module: 'quick_replies', description: 'Can view and search quick reply templates' },
+    { slug: 'quick_replies:manage', name: 'Manage Quick Replies', module: 'quick_replies', description: 'Can create and edit quick reply templates' },
     // Campaigns
     { slug: 'campaigns:read', name: 'View Campaigns', module: 'campaigns', description: 'Can view marketing campaigns' },
     { slug: 'campaigns:create', name: 'Create Campaigns', module: 'campaigns', description: 'Can build draft campaigns' },
@@ -135,7 +139,8 @@ async function main() {
         'notes:read', 'notes:create',
         'tasks:read', 'tasks:create', 'tasks:update',
         'dashboard:read',
-        'conversations:read', 'conversations:reply', 'conversations:close'
+        'conversations:read', 'conversations:reply', 'conversations:assign', 'conversations:transfer', 'conversations:close',
+        'quick_replies:read'
       ].includes(perm.slug)
     ) {
       await prisma.rolePermission.upsert({
@@ -262,7 +267,41 @@ async function main() {
       create: stage,
     });
   }
-  console.log(`  Lead Pipeline Stages synced: ${defaultStages.length} stages.`);
+  // 9. Default Quick Replies
+  const defaultQuickReplies = [
+    {
+      title: 'Support Greeting',
+      shortcut: '/hello',
+      content: 'Hello! Thank you for contacting Stech Solutions support. How may I assist you today?',
+    },
+    {
+      title: 'Pricing & Tiers Inquiry',
+      shortcut: '/pricing',
+      content: 'Our WhatsApp Business CRM offers Standard, Pro, and Enterprise tiers. You can review all plan inclusions or schedule a 1-on-1 walkthrough with our solutions specialist.',
+    },
+    {
+      title: 'Transfer Notice',
+      shortcut: '/transfer',
+      content: 'I am transferring your enquiry to our specialized department who will assist you immediately. Please hold for just a moment.',
+    },
+    {
+      title: 'Resolution Confirmation',
+      shortcut: '/resolved',
+      content: 'Thank you for choosing Stech Solutions. We have marked this inquiry as resolved. Feel free to message us again if you have any further questions!',
+    },
+  ];
+
+  for (const qr of defaultQuickReplies) {
+    await prisma.quickReply.upsert({
+      where: { shortcut: qr.shortcut },
+      update: { title: qr.title, content: qr.content },
+      create: {
+        ...qr,
+        createdById: adminUser.id,
+      },
+    });
+  }
+  console.log(`  Quick Replies synced: ${defaultQuickReplies.length} templates.`);
 
   console.log('✅ Seed completed successfully!');
 }

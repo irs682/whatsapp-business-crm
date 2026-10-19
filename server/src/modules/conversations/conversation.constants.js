@@ -1,5 +1,27 @@
-const CONVERSATION_CONSTANTS = {
-  MODULE_NAME: 'conversations',
+const CONVERSATION_STATUS = {
+  OPEN: 'OPEN',
+  PENDING: 'PENDING',
+  RESOLVED: 'RESOLVED',
+  CLOSED: 'CLOSED',
 };
 
-module.exports = CONVERSATION_CONSTANTS;
+const CONVERSATION_PRIORITY = {
+  LOW: 'LOW',
+  NORMAL: 'NORMAL',
+  HIGH: 'HIGH',
+  URGENT: 'URGENT',
+};
+
+// Valid status transitions
+const ALLOWED_STATUS_TRANSITIONS = {
+  OPEN: ['PENDING', 'RESOLVED', 'CLOSED'],
+  PENDING: ['OPEN', 'RESOLVED', 'CLOSED'],
+  RESOLVED: ['OPEN', 'CLOSED'],
+  CLOSED: ['OPEN'], // Reopening closed chats
+};
+
+module.exports = {
+  CONVERSATION_STATUS,
+  CONVERSATION_PRIORITY,
+  ALLOWED_STATUS_TRANSITIONS,
+};

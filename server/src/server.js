@@ -1,13 +1,20 @@
+const http = require('http');
 const app = require('./app');
 const env = require('./config/env');
 const logger = require('./utils/logger');
 const prisma = require('./config/prisma');
+const { initSocket } = require('./socket');
 
 const PORT = env.PORT || 5000;
+const httpServer = http.createServer(app);
 
-const server = app.listen(PORT, () => {
+// Initialize real-time Socket.IO server
+initSocket(httpServer);
+
+const server = httpServer.listen(PORT, () => {
   logger.info(`🚀 WhatsApp Business CRM Server running on port ${PORT} [${env.NODE_ENV}]`);
   logger.info(`📡 API endpoint: http://localhost:${PORT}${env.API_PREFIX}`);
+  logger.info(`⚡ Socket.IO real-time engine active`);
 });
 
 // Graceful Shutdown Handling

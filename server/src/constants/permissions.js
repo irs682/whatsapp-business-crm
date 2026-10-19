@@ -45,7 +45,12 @@ const PERMISSIONS = {
   CONVERSATIONS_READ: 'conversations:read',
   CONVERSATIONS_REPLY: 'conversations:reply',
   CONVERSATIONS_ASSIGN: 'conversations:assign',
+  CONVERSATIONS_TRANSFER: 'conversations:transfer',
   CONVERSATIONS_CLOSE: 'conversations:close',
+
+  // Quick Replies
+  QUICK_REPLIES_READ: 'quick_replies:read',
+  QUICK_REPLIES_MANAGE: 'quick_replies:manage',
 
   // Marketing & Campaigns
   CAMPAIGNS_READ: 'campaigns:read',

@@ -1,9 +1,11 @@
 const noteRepository = require('./note.repository');
 const contactService = require('../contacts/contact.service');
 const leadService = require('../leads/lead.service');
+const conversationRepository = require('../conversations/conversation.repository');
 const { NotFoundError, ForbiddenError } = require('../../errors');
 const { getPagination, formatPaginatedResponse } = require('../../utils/pagination');
 const { logActivity } = require('../../utils/activityLogger');
+const { getIO } = require('../../socket');
 
 class NoteService {
   async listNotes(query, user) {
@@ -15,6 +17,21 @@ class NoteService {
     }
     if (query.leadId) {
       await leadService.getLeadById(query.leadId, user);
+    }
+    if (query.conversationId) {
+      const conv = await conversationRepository.findById(query.conversationId);
+      if (!conv) {
+        throw new NotFoundError('Conversation not found');
+      }
+      if (
+        user.role !== 'SUPER_ADMIN' &&
+        user.role !== 'ADMIN' &&
+        user.departmentId &&
+        conv.departmentId &&
+        conv.departmentId !== user.departmentId
+      ) {
+        throw new ForbiddenError('You do not have access to this conversation');
+      }
     }
 
     const where = {
@@ -36,6 +53,21 @@ class NoteService {
     if (data.leadId) {
       await leadService.getLeadById(data.leadId, user);
     }
+    if (data.conversationId) {
+      const conv = await conversationRepository.findById(data.conversationId);
+      if (!conv) {
+        throw new NotFoundError('Conversation not found');
+      }
+      if (
+        user.role !== 'SUPER_ADMIN' &&
+        user.role !== 'ADMIN' &&
+        user.departmentId &&
+        conv.departmentId &&
+        conv.departmentId !== user.departmentId
+      ) {
+        throw new ForbiddenError('You do not have permission to add notes to this conversation');
+      }
+    }
 
     const note = await noteRepository.create({
       content: data.content,
@@ -54,8 +86,21 @@ class NoteService {
       contactId: note.contactId,
       leadId: note.leadId,
       description: `Internal note added by ${user.firstName || 'User'}`,
-      metadata: { isInternal: note.isInternal },
+      metadata: { isInternal: note.isInternal, conversationId: note.conversationId },
     });
+
+    // Real-time broadcast
+    if (note.conversationId) {
+      try {
+        const io = getIO();
+        io.to(`conversation:${note.conversationId}`).emit('note.created', {
+          conversationId: note.conversationId,
+          note,
+        });
+      } catch (err) {
+        // Socket not initialized in test/isolated mode
+      }
+    }
 
     return note;
   }

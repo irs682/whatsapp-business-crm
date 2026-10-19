@@ -6,9 +6,22 @@ const authenticate = require('../../middleware/auth.middleware');
 const { requirePermissions } = require('../../middleware/rbac.middleware');
 const PERMISSIONS = require('../../constants/permissions');
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 router.use(authenticate);
+
+// Middleware to inject parent route params if nested (e.g. /conversations/:conversationId/notes)
+router.use((req, res, next) => {
+  if (req.params.conversationId) {
+    if (req.method === 'GET') {
+      req.query.conversationId = req.params.conversationId;
+    } else if (req.method === 'POST') {
+      req.body = req.body || {};
+      req.body.conversationId = req.params.conversationId;
+    }
+  }
+  next();
+});
 
 router.get(
   '/',
