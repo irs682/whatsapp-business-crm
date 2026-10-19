@@ -10,6 +10,7 @@ import DashboardPage from '../pages/DashboardPage';
 import InboxPage from '../pages/InboxPage';
 import ContactsPage from '../pages/ContactsPage';
 import LeadsPage from '../pages/LeadsPage';
+import TasksPage from '../pages/TasksPage';
 import DepartmentsPage from '../pages/DepartmentsPage';
 import UsersPage from '../pages/UsersPage';
 import CampaignsPage from '../pages/CampaignsPage';
@@ -30,6 +31,7 @@ export const AppRoutes = () => {
         <Route path={ROUTES.INBOX} element={<InboxPage />} />
         <Route path={ROUTES.CONTACTS} element={<ContactsPage />} />
         <Route path={ROUTES.LEADS} element={<LeadsPage />} />
+        <Route path={ROUTES.TASKS} element={<TasksPage />} />
         <Route path={ROUTES.DEPARTMENTS} element={<DepartmentsPage />} />
         <Route path={ROUTES.USERS} element={<UsersPage />} />
         <Route path={ROUTES.CAMPAIGNS} element={<CampaignsPage />} />
