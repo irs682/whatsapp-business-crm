@@ -5,18 +5,26 @@ const { CAMPAIGN_STATUS, RECIPIENT_STATUS, JOB_STATUS } = require('./campaign.co
 const { logActivity } = require('../../utils/activityLogger');
 const { ApiError } = require('../../errors');
 
+const env = require('../../config/env');
+
 class CampaignQueue {
   constructor() {
     this.isProcessing = false;
     this.workerInterval = null;
     this.schedulerInterval = null;
-    this.rateLimitDelayMs = 50; // Max ~20 msgs/sec for compliant throughput
+    this.rateLimitDelayMs = env.CAMPAIGN_RATE_LIMIT_DELAY_MS || 50;
+    this.batchSize = env.CAMPAIGN_BATCH_SIZE || 10;
   }
 
   /**
    * Start the in-process queue worker and scheduler loops
    */
   startWorkers() {
+    if (!env.CAMPAIGN_WORKER_ENABLED) {
+      console.log('[CampaignQueue] Background workers disabled via CAMPAIGN_WORKER_ENABLED=false');
+      return;
+    }
+
     if (this.workerInterval) return;
 
     this.workerInterval = setInterval(() => {
@@ -219,14 +227,14 @@ class CampaignQueue {
     this.isProcessing = true;
 
     try {
-      // 1. Find up to 10 pending jobs ready for execution
+      // 1. Find pending jobs ready for execution up to configured batchSize
       const jobs = await prisma.campaignSendJob.findMany({
         where: {
           status: JOB_STATUS.PENDING,
           nextAttemptAt: { lte: new Date(Date.now() + 5000) },
           campaign: { status: CAMPAIGN_STATUS.RUNNING },
         },
-        take: 10,
+        take: this.batchSize,
         include: {
           campaign: {
             include: { template: true },
