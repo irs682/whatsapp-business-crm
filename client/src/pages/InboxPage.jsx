@@ -351,15 +351,15 @@ export const InboxPage = () => {
 
       const [detailRes, msgRes, noteRes, actRes] = await Promise.all([
         api.get(`/conversations/${id}`),
-        api.get(`/conversations/${id}/messages?limit=100`),
-        api.get(`/conversations/${id}/notes`),
-        api.get(`/conversations/${id}/activity`),
+        api.get(`/conversations/${id}/messages?limit=100`).catch(() => ({ success: true, data: { items: [] } })),
+        api.get(`/conversations/${id}/notes`).catch(() => ({ success: true, data: { items: [] } })),
+        api.get(`/conversations/${id}/activity`).catch(() => ({ success: true, data: [] })),
       ]);
 
-      if (detailRes.success) setConversationDetails(detailRes.data);
-      if (msgRes.success) setMessages(msgRes.data?.items || []);
-      if (noteRes.success) setNotes(noteRes.data?.items || []);
-      if (actRes.success) setActivityHistory(actRes.data || []);
+      if (detailRes && detailRes.success) setConversationDetails(detailRes.data);
+      if (msgRes && msgRes.success) setMessages(msgRes.data?.items || msgRes.data || []);
+      if (noteRes && noteRes.success) setNotes(noteRes.data?.items || noteRes.data || []);
+      if (actRes && actRes.success) setActivityHistory(actRes.data || []);
 
       await api.post(`/conversations/${id}/read`);
       setConversations((prev) =>
@@ -432,6 +432,59 @@ export const InboxPage = () => {
     } catch (err) {
       showToast(err.message || 'Conflict: This conversation was already claimed by another agent', 'error');
       fetchConversations();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Operations: Create New Conversation
+  const handleCreateNewConversation = async (e) => {
+    if (e) e.preventDefault();
+    if (!newConvForm.contactId) {
+      showToast('Please select a contact', 'warning');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      const payload = {
+        contactId: newConvForm.contactId,
+        departmentId: newConvForm.departmentId || null,
+        priority: newConvForm.priority || 'NORMAL',
+        status: 'OPEN',
+        channel: 'WHATSAPP',
+      };
+
+      const res = await api.post('/conversations', payload);
+      if (res.success && res.data) {
+        const newConv = res.data;
+        showToast('Conversation initialized successfully', 'success');
+        setShowNewConvModal(false);
+        const openingMessage = newConvForm.initialMessage?.trim();
+        setNewConvForm({
+          contactId: '',
+          departmentId: '',
+          priority: 'NORMAL',
+          initialMessage: '',
+        });
+
+        // If an opening message was entered, dispatch it
+        if (openingMessage) {
+          try {
+            await api.post(`/conversations/${newConv.id}/send-text`, {
+              text: openingMessage,
+            });
+          } catch (sendErr) {
+            console.error('Failed to send opening message:', sendErr);
+          }
+        }
+
+        await fetchConversations();
+        setSelectedConvId(newConv.id);
+      }
+    } catch (err) {
+      console.error('Failed to create new conversation:', err);
+      showToast(err.message || 'Failed to initialize conversation', 'error');
     } finally {
       setActionLoading(false);
     }

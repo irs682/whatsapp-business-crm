@@ -61,4 +61,25 @@ router.delete(
   (req, res, next) => contactController.delete(req, res, next)
 );
 
+// Marketing Consent Management
+const consentController = require('../consent/consent.controller');
+
+router.get(
+  '/:id/marketing-consent',
+  requirePermissions(PERMISSIONS.MARKETING_CONSENT_READ),
+  (req, res, next) => consentController.getContactConsent(req, res, next)
+);
+
+router.post(
+  '/:id/marketing-consent',
+  requirePermissions(PERMISSIONS.MARKETING_CONSENT_MANAGE),
+  (req, res, next) => consentController.recordContactConsent(req, res, next)
+);
+
+router.get(
+  '/:id/consent-history',
+  requirePermissions(PERMISSIONS.MARKETING_CONSENT_READ),
+  (req, res, next) => consentController.getContactConsentHistory(req, res, next)
+);
+
 module.exports = router;

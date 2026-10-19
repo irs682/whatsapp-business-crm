@@ -1,10 +1,12 @@
 const { z } = require('zod');
 
-const consentQuerySchema = z.object({
-  page: z.string().optional(),
-  limit: z.string().optional(),
+const recordConsentSchema = z.object({
+  status: z.enum(['GRANTED', 'REVOKED', 'PENDING']),
+  source: z.string().min(2).default('MANUAL_STAFF'),
+  proof: z.string().max(500).optional().nullable(),
+  notes: z.string().max(500).optional().nullable(),
 });
 
 module.exports = {
-  consentQuerySchema,
+  recordConsentSchema,
 };

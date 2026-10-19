@@ -8,8 +8,15 @@ const { initSocket } = require('./socket');
 const PORT = env.PORT || 5000;
 const httpServer = http.createServer(app);
 
+const campaignQueue = require('./modules/campaigns/campaign.queue');
+
 // Initialize real-time Socket.IO server
 initSocket(httpServer);
+
+// Start background campaign queue workers
+if (env.NODE_ENV !== 'test') {
+  campaignQueue.startWorkers();
+}
 
 const server = httpServer.listen(PORT, () => {
   logger.info(`🚀 WhatsApp Business CRM Server running on port ${PORT} [${env.NODE_ENV}]`);
@@ -20,6 +27,7 @@ const server = httpServer.listen(PORT, () => {
 // Graceful Shutdown Handling
 const handleShutdown = async (signal) => {
   logger.info(`${signal} received. Initiating graceful shutdown...`);
+  campaignQueue.stopWorkers();
   server.close(async () => {
     logger.info('HTTP server closed.');
     try {

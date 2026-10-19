@@ -109,6 +109,15 @@ class ConversationController {
       next(error);
     }
   }
+
+  async getActivity(req, res, next) {
+    try {
+      const activities = await conversationService.getActivity(req.params.id, req.user);
+      return ApiResponse.success(res, 'Conversation activity history fetched successfully', activities);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new ConversationController();

@@ -127,6 +127,7 @@ class WhatsAppService {
     }
 
     // C. Check Opt-Out Compliance Keywords (e.g. STOP, UNSUBSCRIBE)
+    let campaignAttribution = null;
     if (rawMessage.type === 'text' && rawMessage.text?.body) {
       const trimmedText = rawMessage.text.body.trim().toUpperCase();
       if (WHATSAPP_CONSTANTS.OPT_OUT_KEYWORDS.includes(trimmedText)) {
@@ -136,6 +137,16 @@ class WhatsAppService {
             isOptedOut: true,
             optOutAt: new Date(),
             consentStatus: 'REVOKED',
+          },
+        });
+        await prisma.consent.create({
+          data: {
+            contactId: contact.id,
+            source: 'KEYWORD_STOP',
+            status: 'REVOKED',
+            marketingEligible: false,
+            optOutAt: new Date(),
+            proof: `Opt-out keyword: ${trimmedText}`,
           },
         });
         await logActivity({
@@ -155,6 +166,34 @@ class WhatsAppService {
             consentStatus: 'GRANTED',
           },
         });
+      }
+
+      // Customer Response Attribution: check if contact received a campaign message recently
+      const recentRecipient = await prisma.campaignRecipient.findFirst({
+        where: {
+          contactId: contact.id,
+          recipientStatus: { in: ['SENT', 'DELIVERED', 'READ'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        include: { campaign: true },
+      });
+
+      if (recentRecipient && recentRecipient.campaign) {
+        campaignAttribution = {
+          attributedCampaignId: recentRecipient.campaign.id,
+          attributedCampaignName: recentRecipient.campaign.name,
+        };
+        if (WHATSAPP_CONSTANTS.OPT_OUT_KEYWORDS.includes(trimmedText)) {
+          await prisma.campaign.update({
+            where: { id: recentRecipient.campaignId },
+            data: { optOutCount: { increment: 1 } },
+          });
+        } else {
+          await prisma.campaign.update({
+            where: { id: recentRecipient.campaignId },
+            data: { repliedCount: { increment: 1 } },
+          });
+        }
       }
     }
 
@@ -250,7 +289,10 @@ class WhatsAppService {
         type: msgType,
         text: textBody,
         mediaUrl,
-        metadata: rawMessage,
+        metadata: {
+          ...rawMessage,
+          attribution: campaignAttribution,
+        },
         waMessageId,
         status: 'DELIVERED', // Since inbound message has safely arrived at our webhook
       },
@@ -346,6 +388,44 @@ class WhatsAppService {
         failureReason,
       },
     });
+
+    // Update Campaign Recipient and Aggregated Counts if this message belongs to a campaign
+    try {
+      const recipient = await prisma.campaignRecipient.findFirst({
+        where: { waMessageId },
+        include: { campaign: true },
+      });
+
+      if (recipient) {
+        const statusData = { recipientStatus: newStatus };
+        if (newStatus === 'DELIVERED') {
+          statusData.deliveredAt = new Date();
+          await prisma.campaign.update({
+            where: { id: recipient.campaignId },
+            data: { deliveredCount: { increment: 1 } },
+          });
+        } else if (newStatus === 'READ') {
+          statusData.readAt = new Date();
+          await prisma.campaign.update({
+            where: { id: recipient.campaignId },
+            data: { readCount: { increment: 1 } },
+          });
+        } else if (newStatus === 'FAILED') {
+          statusData.failedAt = new Date();
+          statusData.errorDetails = failureReason;
+          await prisma.campaign.update({
+            where: { id: recipient.campaignId },
+            data: { failedCount: { increment: 1 } },
+          });
+        }
+        await prisma.campaignRecipient.update({
+          where: { id: recipient.id },
+          data: statusData,
+        });
+      }
+    } catch (err) {
+      logger.error(`[WhatsAppService] Error updating campaign recipient status: ${err.message}`);
+    }
 
     // Real-Time Socket.IO Notification
     try {
@@ -450,12 +530,61 @@ class WhatsAppService {
   /**
    * Outbound: Send pre-approved WhatsApp message template
    * Permitted outside 24-hour window!
+   * Supports both conversationId string or options object { contactId, templateName, languageCode, parameters, campaignId }
    */
-  async sendOutboundTemplate(conversationId, templateName, languageCode = 'en_US', components = [], user) {
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: { contact: true },
-    });
+  async sendOutboundTemplate(conversationIdOrOptions, templateNameArg, languageCodeArg = 'en_US', componentsArg = [], userArg) {
+    let conversation;
+    let templateName = templateNameArg;
+    let languageCode = languageCodeArg;
+    let components = componentsArg;
+    let user = userArg;
+    let campaignId = null;
+
+    if (typeof conversationIdOrOptions === 'object' && conversationIdOrOptions !== null) {
+      const opts = conversationIdOrOptions;
+      user = templateNameArg || { id: null, role: 'ADMIN' };
+      templateName = opts.templateName;
+      languageCode = opts.languageCode || 'en_US';
+      campaignId = opts.campaignId || null;
+
+      if (opts.parameters && Array.isArray(opts.parameters) && opts.parameters.length > 0) {
+        components = [{ type: 'body', parameters: opts.parameters }];
+      } else if (opts.components) {
+        components = opts.components;
+      }
+
+      if (opts.conversationId) {
+        conversation = await prisma.conversation.findUnique({
+          where: { id: opts.conversationId },
+          include: { contact: true },
+        });
+      } else if (opts.contactId) {
+        const contact = await prisma.contact.findUnique({ where: { id: opts.contactId } });
+        if (!contact) throw new WhatsAppError('Contact not found', 404, 'NOT_FOUND');
+
+        conversation = await prisma.conversation.findFirst({
+          where: { contactId: opts.contactId, status: { in: ['OPEN', 'PENDING'] } },
+          include: { contact: true },
+        });
+
+        if (!conversation) {
+          conversation = await prisma.conversation.create({
+            data: {
+              contactId: opts.contactId,
+              channel: 'WHATSAPP',
+              status: 'OPEN',
+              departmentId: contact.departmentId || null,
+            },
+            include: { contact: true },
+          });
+        }
+      }
+    } else {
+      conversation = await prisma.conversation.findUnique({
+        where: { id: conversationIdOrOptions },
+        include: { contact: true },
+      });
+    }
 
     if (!conversation) {
       throw new WhatsAppError('Conversation not found', 404, 'NOT_FOUND');
@@ -463,6 +592,7 @@ class WhatsAppService {
 
     // Check department access
     if (
+      user &&
       user.role !== 'SUPER_ADMIN' &&
       user.role !== 'ADMIN' &&
       user.departmentId &&
@@ -509,13 +639,14 @@ class WhatsAppService {
         direction: 'OUTBOUND',
         type: 'TEMPLATE',
         text: bodyPreview,
-        senderUserId: user.id,
+        senderUserId: user?.id || null,
         waMessageId,
         status: 'SENT',
         metadata: {
           templateName,
           languageCode,
           components,
+          campaignId,
           metaResponse,
         },
       },
@@ -532,7 +663,7 @@ class WhatsAppService {
     });
 
     await logActivity({
-      actorId: user.id,
+      actorId: user?.id || null,
       action: 'WHATSAPP_TEMPLATE_SENT',
       entityType: 'MESSAGE',
       entityId: message.id,
@@ -548,6 +679,10 @@ class WhatsAppService {
       });
     } catch (err) {
       // Ignore in tests
+    }
+
+    if (campaignId) {
+      return { waMessageId, message };
     }
 
     return message;

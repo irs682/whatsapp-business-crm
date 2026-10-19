@@ -13,6 +13,12 @@ const expect = (actual) => ({
     );
   },
   toBeDefined: () => assert.notStrictEqual(actual, undefined),
+  toBeGreaterThanOrEqual: (expected) => assert.ok(actual >= expected, `Expected ${actual} >= ${expected}`),
+  toBeGreaterThan: (expected) => assert.ok(actual > expected, `Expected ${actual} > ${expected}`),
+  toBeLessThan: (expected) => assert.ok(actual < expected, `Expected ${actual} < ${expected}`),
+  toBeNull: () => assert.strictEqual(actual, null),
+  toBeTruthy: () => assert.ok(Boolean(actual)),
+  toBeFalsy: () => assert.ok(!Boolean(actual)),
 });
 
 module.exports = {

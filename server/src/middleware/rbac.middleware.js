@@ -45,7 +45,34 @@ const requirePermissions = (...requiredPermissions) => {
   };
 };
 
+/**
+ * Checks if authenticated user has at least one of the specified permission slugs.
+ * SUPER_ADMIN is automatically granted access.
+ */
+const requireAnyPermission = (...allowedPermissions) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return next(new ForbiddenError('Authentication context required'));
+    }
+
+    if (req.user.role === ROLES.SUPER_ADMIN) {
+      return next();
+    }
+
+    const hasAny = allowedPermissions.some((perm) =>
+      req.user.permissions.includes(perm)
+    );
+
+    if (!hasAny) {
+      return next(new ForbiddenError('You lack necessary permissions for this operation'));
+    }
+
+    next();
+  };
+};
+
 module.exports = {
   requireRoles,
   requirePermissions,
+  requireAnyPermission,
 };

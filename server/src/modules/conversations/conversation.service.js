@@ -356,6 +356,25 @@ class ConversationService {
     emitToConversation(id, 'conversation:read', { conversationId: id, userId: user.id });
     return { id, unreadCount: 0, success: true };
   }
+
+  async getActivity(id, user) {
+    const conv = await this.getById(id, user);
+    return prisma.activityLog.findMany({
+      where: {
+        OR: [
+          { entityId: id },
+          { contactId: conv.contactId },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: {
+        actor: {
+          select: { id: true, firstName: true, lastName: true },
+        },
+      },
+    });
+  }
 }
 
 module.exports = new ConversationService();

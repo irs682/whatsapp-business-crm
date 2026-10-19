@@ -77,7 +77,20 @@ async function main() {
     // Campaigns
     { slug: 'campaigns:read', name: 'View Campaigns', module: 'campaigns', description: 'Can view marketing campaigns' },
     { slug: 'campaigns:create', name: 'Create Campaigns', module: 'campaigns', description: 'Can build draft campaigns' },
+    { slug: 'campaigns:update', name: 'Update Campaigns', module: 'campaigns', description: 'Can edit draft and scheduled campaigns' },
     { slug: 'campaigns:approve', name: 'Approve Campaigns', module: 'campaigns', description: 'Can approve campaigns for broadcast' },
+    { slug: 'campaigns:schedule', name: 'Schedule Campaigns', module: 'campaigns', description: 'Can schedule campaigns' },
+    { slug: 'campaigns:start', name: 'Start Campaigns', module: 'campaigns', description: 'Can launch campaigns' },
+    { slug: 'campaigns:cancel', name: 'Cancel Campaigns', module: 'campaigns', description: 'Can pause or cancel running campaigns' },
+    // Marketing Segments
+    { slug: 'segments:read', name: 'View Segments', module: 'segments', description: 'Can view audience segments' },
+    { slug: 'segments:manage', name: 'Manage Segments', module: 'segments', description: 'Can create and edit audience segments' },
+    // Marketing Consent
+    { slug: 'marketing_consent:read', name: 'View Consent', module: 'marketing_consent', description: 'Can view marketing consent records' },
+    { slug: 'marketing_consent:manage', name: 'Manage Consent', module: 'marketing_consent', description: 'Can grant or revoke consent' },
+    // Marketing Automations
+    { slug: 'automations:read', name: 'View Automations', module: 'automations', description: 'Can view marketing automation rules' },
+    { slug: 'automations:manage', name: 'Manage Automations', module: 'automations', description: 'Can create and toggle automations' },
     // Reports & Audit
     { slug: 'reports:read', name: 'View Reports', module: 'reports', description: 'Can view analytics and performance' },
     { slug: 'audit:read', name: 'View Audit Logs', module: 'audit', description: 'Can view system audit trail' },
@@ -119,7 +132,10 @@ async function main() {
         'tasks:read', 'tasks:create', 'tasks:update', 'tasks:delete',
         'dashboard:read',
         'conversations:read', 'conversations:reply', 'conversations:assign', 'conversations:close',
-        'campaigns:read', 'campaigns:create', 'campaigns:approve',
+        'campaigns:read', 'campaigns:create', 'campaigns:update', 'campaigns:approve', 'campaigns:schedule', 'campaigns:start', 'campaigns:cancel',
+        'segments:read', 'segments:manage',
+        'marketing_consent:read', 'marketing_consent:manage',
+        'automations:read', 'automations:manage',
         'reports:read', 'audit:read'
       ].includes(perm.slug)
     ) {

@@ -58,6 +58,8 @@ router.use('/quick-replies', quickReplyRoutes);
 router.use('/notes', noteRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/campaigns', campaignRoutes);
+router.use('/marketing/segments', require('../modules/marketing/segments/segment.routes'));
+router.use('/marketing/automations', require('../modules/marketing/automations/automation.routes'));
 router.use('/templates', templateRoutes);
 router.use('/consent', consentRoutes);
 router.use('/reports', reportRoutes);

@@ -95,6 +95,46 @@ enum CampaignStatus {
   PAUSED
   COMPLETED
   CANCELLED
+  REJECTED
+  FAILED
+}
+
+enum CampaignType {
+  BROADCAST
+  DRIP
+}
+
+enum CampaignRecipientStatus {
+  QUEUED
+  PROCESSING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SUPPRESSED
+  SKIPPED
+}
+
+enum JobStatus {
+  PENDING
+  CLAIMED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AutomationTrigger {
+  CONTACT_CREATED
+  LEAD_STAGE_CHANGED
+  CAMPAIGN_REPLY
+  CONSENT_REVOKED
+}
+
+enum AutomationAction {
+  CREATE_TASK
+  SEND_TEMPLATE
+  ASSIGN_DEPARTMENT
+  SUPPRESS_CONTACT
 }
 
 enum TemplateCategory {
@@ -141,7 +181,11 @@ model User {
   assignedTasks   Task[]           @relation("AssignedTaskAgent")
   createdTasks    Task[]           @relation("CreatedTasks")
   notes           Note[]
-  campaigns       Campaign[]
+  campaigns       Campaign[]       @relation("CampaignCreator")
+  approvedCampaigns Campaign[]     @relation("CampaignApprover")
+  segmentsCreated MarketingSegment[]
+  approvalsGiven  CampaignApproval[]
+  consentsRecorded Consent[]       @relation("ConsentRecordedBy")
   auditLogs       AuditLog[]       @relation("ActorAuditLogs")
   activityLogs    ActivityLog[]    @relation("ActorActivityLogs")
   notifications   Notification[]
@@ -223,6 +267,8 @@ model Department {
   transfersFrom   ConversationTransfer[] @relation("TransferFromDepartment")
   transfersTo     ConversationTransfer[] @relation("TransferToDepartment")
   quickReplies    QuickReply[]
+  marketingSegments MarketingSegment[]
+  campaigns       Campaign[]
 
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
@@ -562,53 +608,164 @@ model Task {
 // MARKETING & CAMPAIGNS
 // -------------------------------------------------------------
 
+model MarketingSegment {
+  id           String      @id @default(uuid())
+  name         String
+  description  String?
+  filters      Json        // { tags: [], leadStages: [], consentOnly: true, isOptedOut: false, departmentId: null }
+  departmentId String?     @map("department_id")
+  department   Department? @relation(fields: [departmentId], references: [id])
+  createdById  String      @map("created_by_id")
+  createdBy    User        @relation(fields: [createdById], references: [id])
+  isArchived   Boolean     @default(false) @map("is_archived")
+
+  campaigns    Campaign[]
+
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  deletedAt    DateTime?   @map("deleted_at")
+
+  @@index([departmentId])
+  @@index([createdById])
+  @@map("marketing_segments")
+}
+
 model Campaign {
   id              String           @id @default(uuid())
   name            String
   description     String?
+  type            CampaignType     @default(BROADCAST)
   templateId      String?          @map("template_id")
   createdById     String           @map("created_by_id")
+  approvedById    String?          @map("approved_by_id")
+  audienceSegmentId String?        @map("audience_segment_id")
+  departmentId    String?          @map("department_id")
   status          CampaignStatus   @default(DRAFT)
+  timezone        String           @default("UTC")
+  parameters      Json?            // Variable mappings e.g. { "1": "firstName", "2": "company" }
   scheduledAt     DateTime?        @map("scheduled_at")
   startedAt       DateTime?        @map("started_at")
   completedAt     DateTime?        @map("completed_at")
+  pausedAt        DateTime?        @map("paused_at")
+  cancelledAt     DateTime?        @map("cancelled_at")
+  rejectionReason String?          @map("rejection_reason")
+  approvalComment String?          @map("approval_comment")
 
   totalRecipients Int              @default(0) @map("total_recipients")
+  eligibleCount   Int              @default(0) @map("eligible_count")
+  suppressedCount Int              @default(0) @map("suppressed_count")
   sentCount       Int              @default(0) @map("sent_count")
   deliveredCount  Int              @default(0) @map("delivered_count")
   readCount       Int              @default(0) @map("read_count")
   failedCount     Int              @default(0) @map("failed_count")
+  repliedCount    Int              @default(0) @map("replied_count")
+  optOutCount     Int              @default(0) @map("opt_out_count")
 
   template        MessageTemplate? @relation(fields: [templateId], references: [id])
-  createdBy       User             @relation(fields: [createdById], references: [id])
+  createdBy       User             @relation("CampaignCreator", fields: [createdById], references: [id])
+  approvedBy      User?            @relation("CampaignApprover", fields: [approvedById], references: [id])
+  audienceSegment MarketingSegment? @relation(fields: [audienceSegmentId], references: [id])
+  department      Department?      @relation(fields: [departmentId], references: [id])
   recipients      CampaignRecipient[]
+  approvals       CampaignApproval[]
+  sendJobs        CampaignSendJob[]
+  activityLogs    CampaignActivityLog[]
 
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   deletedAt       DateTime?        @map("deleted_at")
 
   @@index([status])
+  @@index([audienceSegmentId])
+  @@index([departmentId])
+  @@index([createdById])
+  @@index([scheduledAt])
   @@map("campaigns")
 }
 
-model CampaignRecipient {
-  id            String         @id @default(uuid())
-  campaignId    String         @map("campaign_id")
-  contactId     String         @map("contact_id")
-  messageId     String?        @map("message_id")
-  status        MessageStatus  @default(QUEUED)
-  errorDetails  String?        @map("error_details")
+model CampaignApproval {
+  id         String   @id @default(uuid())
+  campaignId String   @map("campaign_id")
+  approverId String   @map("approver_id")
+  action     String   // APPROVED, REJECTED, CHANGES_REQUESTED
+  comment    String?
+  createdAt  DateTime @default(now()) @map("created_at")
 
-  campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  contact       Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  message       Message?       @relation(fields: [messageId], references: [id])
-
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  approver   User     @relation(fields: [approverId], references: [id])
 
   @@index([campaignId])
+  @@index([approverId])
+  @@map("campaign_approvals")
+}
+
+model CampaignRecipient {
+  id              String                  @id @default(uuid())
+  campaignId      String                  @map("campaign_id")
+  contactId       String                  @map("contact_id")
+  phone           String?
+  messageId       String?                 @map("message_id")
+  waMessageId     String?                 @map("wa_message_id")
+  status          MessageStatus           @default(QUEUED)
+  recipientStatus CampaignRecipientStatus @default(QUEUED) @map("recipient_status")
+  errorDetails    String?                 @map("error_details")
+  sentAt          DateTime?               @map("sent_at")
+  deliveredAt     DateTime?               @map("delivered_at")
+  readAt          DateTime?               @map("read_at")
+  failedAt        DateTime?               @map("failed_at")
+
+  campaign        Campaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact         Contact                 @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  message         Message?                @relation(fields: [messageId], references: [id])
+  sendJobs        CampaignSendJob[]
+
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+
+  @@unique([campaignId, contactId])
+  @@index([campaignId])
   @@index([contactId])
+  @@index([recipientStatus])
+  @@index([waMessageId])
   @@map("campaign_recipients")
+}
+
+model CampaignSendJob {
+  id            String            @id @default(uuid())
+  campaignId    String            @map("campaign_id")
+  recipientId   String            @map("recipient_id")
+  status        JobStatus         @default(PENDING)
+  attempts      Int               @default(0)
+  maxAttempts   Int               @default(3) @map("max_attempts")
+  nextAttemptAt DateTime          @default(now()) @map("next_attempt_at")
+  lockedAt      DateTime?         @map("locked_at")
+  lockedBy      String?           @map("locked_by")
+  lastError     String?           @map("last_error")
+
+  campaign      Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recipient     CampaignRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  @@index([status, nextAttemptAt])
+  @@index([campaignId])
+  @@map("campaign_send_jobs")
+}
+
+model CampaignActivityLog {
+  id         String   @id @default(uuid())
+  campaignId String   @map("campaign_id")
+  actorId    String?  @map("actor_id")
+  action     String   // CREATED, EDITED, SUBMITTED, APPROVED, REJECTED, SCHEDULED, STARTED, PAUSED, RESUMED, CANCELLED, COMPLETED
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([createdAt])
+  @@map("campaign_activity_logs")
 }
 
 model MessageTemplate {
@@ -644,8 +801,11 @@ model Consent {
   optOutAt          DateTime?      @map("opt_out_at")
   proof             String?
   ipAddress         String?        @map("ip_address")
+  actorId           String?        @map("actor_id")
+  notes             String?
 
   contact           Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  actor             User?          @relation("ConsentRecordedBy", fields: [actorId], references: [id])
 
   createdAt         DateTime       @default(now()) @map("created_at")
   updatedAt         DateTime       @updatedAt @map("updated_at")
@@ -653,6 +813,44 @@ model Consent {
   @@index([contactId])
   @@index([status])
   @@map("consents")
+}
+
+model MarketingAutomationRule {
+  id            String             @id @default(uuid())
+  name          String
+  description   String?
+  triggerType   AutomationTrigger  @map("trigger_type")
+  triggerConfig Json?              @map("trigger_config")
+  conditions    Json?
+  actionType    AutomationAction   @map("action_type")
+  actionConfig  Json?              @map("action_config")
+  isActive      Boolean            @default(true) @map("is_active")
+  createdById   String             @map("created_by_id")
+
+  executions    AutomationExecution[]
+
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  @@index([triggerType, isActive])
+  @@map("marketing_automation_rules")
+}
+
+model AutomationExecution {
+  id               String                  @id @default(uuid())
+  ruleId           String                  @map("rule_id")
+  contactId        String?                 @map("contact_id")
+  status           String                  @default("SUCCESS") // SUCCESS, FAILED, SKIPPED
+  executionDetails Json?                   @map("execution_details")
+  error            String?
+
+  rule             MarketingAutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime                @default(now()) @map("created_at")
+
+  @@index([ruleId])
+  @@index([createdAt])
+  @@map("automation_executions")
 }
 
 // -------------------------------------------------------------

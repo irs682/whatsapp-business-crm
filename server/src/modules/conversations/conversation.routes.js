@@ -43,6 +43,12 @@ router.get(
   (req, res, next) => conversationController.getById(req, res, next)
 );
 
+router.get(
+  '/:id/activity',
+  requirePermissions(PERMISSIONS.CONVERSATIONS_READ),
+  (req, res, next) => conversationController.getActivity(req, res, next)
+);
+
 router.patch(
   '/:id/status',
   requirePermissions(PERMISSIONS.CONVERSATIONS_CLOSE),

@@ -55,7 +55,23 @@ const PERMISSIONS = {
   // Marketing & Campaigns
   CAMPAIGNS_READ: 'campaigns:read',
   CAMPAIGNS_CREATE: 'campaigns:create',
+  CAMPAIGNS_UPDATE: 'campaigns:update',
   CAMPAIGNS_APPROVE: 'campaigns:approve',
+  CAMPAIGNS_SCHEDULE: 'campaigns:schedule',
+  CAMPAIGNS_START: 'campaigns:start',
+  CAMPAIGNS_CANCEL: 'campaigns:cancel',
+
+  // Marketing Segments
+  SEGMENTS_READ: 'segments:read',
+  SEGMENTS_MANAGE: 'segments:manage',
+
+  // Marketing Consent
+  MARKETING_CONSENT_READ: 'marketing_consent:read',
+  MARKETING_CONSENT_MANAGE: 'marketing_consent:manage',
+
+  // Marketing Automations
+  AUTOMATIONS_READ: 'automations:read',
+  AUTOMATIONS_MANAGE: 'automations:manage',
 
   // Reports & Audits
   REPORTS_READ: 'reports:read',

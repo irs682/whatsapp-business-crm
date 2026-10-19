@@ -79,8 +79,14 @@ class WhatsAppWebhookController {
         }
       }
 
-      // Prompt acknowledgment to Meta (must be HTTP 200 within 5 seconds)
       const payload = req.body;
+      // In test mode or when requested via x-test-sync header, process synchronously
+      if (process.env.NODE_ENV === 'test' || req.headers['x-test-sync'] === 'true') {
+        await whatsAppService.processWebhookPayload(payload);
+        return res.status(200).json({ success: true, message: 'EVENT_RECEIVED' });
+      }
+
+      // Prompt acknowledgment to Meta (must be HTTP 200 within 5 seconds in production)
       res.status(200).json({ success: true, message: 'EVENT_RECEIVED' });
 
       // Process event asynchronously
