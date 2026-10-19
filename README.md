@@ -27,12 +27,12 @@
 
 | Layer | Technologies |
 | :--- | :--- |
-| **Frontend** | React 18, Vite, Tailwind CSS, Lucide Icons, React Router v6 |
-| **Backend** | Node.js (v20+ / v23), Express 5, Morgan, Helmet, CORS |
+| **Frontend** | React 18, Vite, Tailwind CSS, Lucide Icons, React Router v6, Socket.IO Client |
+| **Backend** | Node.js (v20+ / v23), Express 5, Socket.IO, Morgan, Helmet, CORS |
 | **Database** | PostgreSQL 14+, Prisma ORM 5.22 |
 | **Security & Auth** | JSON Web Tokens (JWT), bcryptjs, express-rate-limit, Zod |
 | **Integrations** | Meta WhatsApp Cloud API (Graph API v21.0+) |
-| **Testing** | Vitest, Supertest |
+| **Testing** | Node.js Native Test Runner (36 passing tests) |
 | **Tooling & CI** | GitHub Actions, Prettier, Concurrently |
 
 ---
@@ -209,7 +209,7 @@ npm run test
 
 - [x] **Phase 1 — Core Architecture & Foundation**
 - [x] **Phase 2 — Core CRM Implementation (Users, Departments, Contacts, E.164, CSV Import, Leads, Tags, Notes, Tasks, Dashboard)**
-- [ ] **Phase 3 — Shared Team Inbox & Realtime WebSockets**
+- [x] **Phase 3 — Shared Team Inbox & Realtime WebSockets (3-Column Layout, Agent Claiming, Dept Routing & Transfers, Quick Replies, Unread Tracking)**
 - [ ] **Phase 4 — WhatsApp Cloud API Production Dispatch**
 - [ ] **Phase 5 — Marketing Campaigns & Audience Segmentation**
 - [ ] **Phase 6 — Analytics, SLA Tracking & Custom Reports**
