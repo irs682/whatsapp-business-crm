@@ -152,10 +152,20 @@ const emitToUser = (userId, event, data) => {
   io.to(`user:${userId}`).emit(event, data);
 };
 
+const emitOperationalUpdate = (departmentId, data) => {
+  if (!io) return;
+  if (departmentId) {
+    io.to(`dept:${departmentId}`).to('admin:all').emit('operational:metric_update', data);
+  } else {
+    io.to('admin:all').emit('operational:metric_update', data);
+  }
+};
+
 module.exports = {
   initSocket,
   getIO,
   emitToConversation,
   emitToDepartment,
   emitToUser,
+  emitOperationalUpdate,
 };

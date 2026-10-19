@@ -269,6 +269,7 @@ model Department {
   quickReplies    QuickReply[]
   marketingSegments MarketingSegment[]
   campaigns       Campaign[]
+  auditLogs       AuditLog[]
 
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
@@ -882,21 +883,27 @@ model ActivityLog {
 }
 
 model AuditLog {
-  id            String    @id @default(uuid())
-  actorId       String?   @map("actor_id")
+  id            String      @id @default(uuid())
+  actorId       String?     @map("actor_id")
   action        String
   entity        String
-  entityId      String?   @map("entity_id")
-  previousState Json?     @map("previous_state")
-  newState      Json?     @map("new_state")
-  ipAddress     String?   @map("ip_address")
-  userAgent     String?   @map("user_agent")
+  entityId      String?     @map("entity_id")
+  departmentId  String?     @map("department_id")
+  correlationId String?     @map("correlation_id")
+  previousState Json?       @map("previous_state")
+  newState      Json?       @map("new_state")
+  metadata      Json?
+  ipAddress     String?     @map("ip_address")
+  userAgent     String?     @map("user_agent")
 
-  actor         User?     @relation("ActorAuditLogs", fields: [actorId], references: [id])
-  createdAt     DateTime  @default(now()) @map("created_at")
+  actor         User?       @relation("ActorAuditLogs", fields: [actorId], references: [id])
+  department    Department? @relation(fields: [departmentId], references: [id])
+  createdAt     DateTime    @default(now()) @map("created_at")
 
   @@index([actorId])
   @@index([entity, entityId])
+  @@index([departmentId])
+  @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
 }

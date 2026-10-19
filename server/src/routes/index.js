@@ -64,6 +64,7 @@ router.use('/templates', templateRoutes);
 router.use('/consent', consentRoutes);
 router.use('/reports', reportRoutes);
 router.use('/audit', auditRoutes);
+router.use('/audit-logs', auditRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/whatsapp', whatsappModuleRoutes);
 

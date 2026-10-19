@@ -75,6 +75,8 @@ const PERMISSIONS = {
 
   // Reports & Audits
   REPORTS_READ: 'reports:read',
+  REPORTS_EXPORT: 'reports:export',
+  REPORTS_ADVANCED: 'reports:advanced',
   AUDIT_READ: 'audit:read',
 };
 

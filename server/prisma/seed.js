@@ -93,6 +93,8 @@ async function main() {
     { slug: 'automations:manage', name: 'Manage Automations', module: 'automations', description: 'Can create and toggle automations' },
     // Reports & Audit
     { slug: 'reports:read', name: 'View Reports', module: 'reports', description: 'Can view analytics and performance' },
+    { slug: 'reports:export', name: 'Export Reports', module: 'reports', description: 'Can export reports to CSV/Excel' },
+    { slug: 'reports:advanced', name: 'Advanced Management Intelligence', module: 'reports', description: 'Can access executive cross-department reporting' },
     { slug: 'audit:read', name: 'View Audit Logs', module: 'audit', description: 'Can view system audit trail' },
   ];
 
@@ -136,7 +138,7 @@ async function main() {
         'segments:read', 'segments:manage',
         'marketing_consent:read', 'marketing_consent:manage',
         'automations:read', 'automations:manage',
-        'reports:read', 'audit:read'
+        'reports:read', 'reports:export', 'audit:read'
       ].includes(perm.slug)
     ) {
       await prisma.rolePermission.upsert({
