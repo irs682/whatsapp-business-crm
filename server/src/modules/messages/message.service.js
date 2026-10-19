@@ -32,14 +32,42 @@ class MessageService {
     const direction = data.direction || 'OUTBOUND';
     const isOutbound = direction === 'OUTBOUND';
 
+    let status = 'LOCAL_SAVED';
+    let waMessageId = data.waMessageId || null;
+    let metadata = data.metadata || null;
+
+    if (isOutbound && data.mode === 'LIVE') {
+      const whatsAppService = require('../../integrations/whatsapp/whatsapp.service');
+      const whatsAppClient = require('../../integrations/whatsapp/whatsapp.client');
+
+      // 24-hour customer service window enforcement
+      const isWindowOpen = whatsAppService.isWithinCustomerServiceWindow(conv.lastInboundMessageAt);
+      if (!isWindowOpen && data.type !== 'TEMPLATE') {
+        const { WhatsAppPolicyWindowError } = require('../../integrations/whatsapp/whatsapp.errors');
+        throw new WhatsAppPolicyWindowError(
+          'Outside 24-hour customer service window. Free-form messaging disallowed; use pre-approved WhatsApp template.'
+        );
+      }
+
+      // Dispatch via Meta WhatsApp Client
+      const phone = conv.contact?.phone;
+      if (phone) {
+        const metaRes = await whatsAppClient.sendTextMessage(phone, data.text);
+        waMessageId = metaRes.messages?.[0]?.id || `wamid.local.${Date.now()}`;
+        status = 'SENT';
+        metadata = { ...metadata, metaResponse: metaRes };
+      }
+    }
+
     const message = await messageRepository.create({
       conversationId,
       direction,
       type: data.type || 'TEXT',
       text: data.text,
       mediaUrl: data.mediaUrl || null,
-      metadata: data.metadata || null,
-      status: 'LOCAL_SAVED', // Clearly marked internal Phase 3 local message
+      metadata,
+      waMessageId,
+      status,
       senderUserId: isOutbound ? user.id : null,
     });
 

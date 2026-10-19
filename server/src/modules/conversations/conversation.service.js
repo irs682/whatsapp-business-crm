@@ -82,7 +82,17 @@ class ConversationService {
       }
     }
 
-    return conversation;
+    const whatsAppService = require('../../integrations/whatsapp/whatsapp.service');
+    const isWithinCustomerServiceWindow = whatsAppService.isWithinCustomerServiceWindow(
+      conversation.lastInboundMessageAt
+    );
+    const windowRemainingMs = whatsAppService.getWindowRemainingMs(conversation.lastInboundMessageAt);
+
+    return {
+      ...conversation,
+      isWithinCustomerServiceWindow,
+      windowRemainingMs,
+    };
   }
 
   async create(data, user) {

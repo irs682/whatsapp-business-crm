@@ -6,6 +6,7 @@ const sendMessageSchema = z.object({
   mediaUrl: z.string().url().optional().nullable(),
   metadata: z.record(z.any()).optional().nullable(),
   direction: z.enum(['INBOUND', 'OUTBOUND']).optional().default('OUTBOUND'),
+  mode: z.enum(['LOCAL_TEST', 'LIVE']).optional(),
 });
 
 const listMessagesQuerySchema = z.object({

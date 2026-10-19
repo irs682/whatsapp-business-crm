@@ -65,7 +65,9 @@ router.use('/audit', auditRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/whatsapp', whatsappModuleRoutes);
 
-// Mount WhatsApp Cloud API Webhook Endpoints
+// Mount WhatsApp Cloud API Integration & Webhook Endpoints
+const whatsappIntegrationRoutes = require('../integrations/whatsapp/whatsapp.integration.routes');
+router.use('/integrations/whatsapp', whatsappIntegrationRoutes);
 router.use('/webhooks/whatsapp', whatsappWebhookRoutes);
 
 module.exports = router;

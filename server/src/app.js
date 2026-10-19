@@ -20,8 +20,15 @@ app.use(cors(corsOptions));
 // HTTP Request Logging
 app.use(requestLogger);
 
-// Request parsing with bounded payloads
-app.use(express.json({ limit: '10mb' }));
+// Request parsing with bounded payloads and rawBody capture for webhook signature verification
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Global Rate Limiting

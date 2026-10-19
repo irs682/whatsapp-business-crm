@@ -25,6 +25,7 @@ import {
   ExternalLink,
   Flame,
   Check,
+  CheckCheck,
   AlertTriangle,
   FileText,
   ListFilter,
@@ -33,6 +34,7 @@ import {
   Wifi,
   WifiOff,
   History,
+  LayoutTemplate,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
@@ -69,6 +71,8 @@ export const InboxPage = () => {
   const [agents, setAgents] = useState([]);
   const [quickReplies, setQuickReplies] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [whatsappStatus, setWhatsappStatus] = useState(null);
+  const [whatsappTemplates, setWhatsappTemplates] = useState([]);
 
   // Loading & Sync States
   const [loadingList, setLoadingList] = useState(true);
@@ -93,8 +97,12 @@ export const InboxPage = () => {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showNewConvModal, setShowNewConvModal] = useState(false);
-  const [showActivityDrawer, setShowActivityDrawer] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showRightPanel, setShowRightPanel] = useState(true);
+
+  // Template Modal State
+  const [selectedTemplateName, setSelectedTemplateName] = useState('');
+  const [templateVariables, setTemplateVariables] = useState({});
 
   // Transfer Form State
   const [transferForm, setTransferForm] = useState({
@@ -186,7 +194,6 @@ export const InboxPage = () => {
     });
 
     socket.on('conversation.transferred', ({ conversationId, toDepartmentId, transfer }) => {
-      // If user's department is neither the target nor admin, revoke access
       const isPrivileged = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
       const hasDeptAccess = isPrivileged || user?.departmentId === toDepartmentId;
 
@@ -198,7 +205,6 @@ export const InboxPage = () => {
           showToast('Conversation was transferred to another department and is no longer accessible', 'warning');
         }
       } else {
-        // Refresh conversation list and detail
         fetchConversations();
         if (selectedConvId === conversationId) {
           fetchConversationDetails(conversationId);
@@ -208,7 +214,6 @@ export const InboxPage = () => {
     });
 
     socket.on('message.created', ({ conversationId, message }) => {
-      // Update snippet and lastMessageAt in list
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id === conversationId) {
@@ -224,13 +229,20 @@ export const InboxPage = () => {
         })
       );
 
-      // Append to active message thread
       if (selectedConvId === conversationId) {
         setMessages((prev) => {
           if (prev.find((m) => m.id === message.id)) return prev;
           return [...prev, message];
         });
         scrollToBottom();
+      }
+    });
+
+    socket.on('message.updated', ({ conversationId, messageId, status, failureReason }) => {
+      if (selectedConvId === conversationId) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, status, failureReason } : m))
+        );
       }
     });
 
@@ -256,21 +268,25 @@ export const InboxPage = () => {
     };
   }, [token, selectedConvId, user]);
 
-  // 2. Load Reference Metadata (Departments, Agents, Quick Replies, Contacts)
+  // 2. Load Reference Metadata (Departments, Agents, Quick Replies, Contacts, WhatsApp status & templates)
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [deptRes, userRes, qrRes, contactsRes] = await Promise.all([
+        const [deptRes, userRes, qrRes, contactsRes, waStatusRes, waTplRes] = await Promise.all([
           api.get('/departments'),
           api.get('/users?isActive=true'),
           api.get('/quick-replies'),
           api.get('/contacts?limit=50'),
+          api.get('/integrations/whatsapp/status').catch(() => ({ success: false })),
+          api.get('/integrations/whatsapp/templates').catch(() => ({ success: false })),
         ]);
 
         if (deptRes.success) setDepartments(deptRes.data?.items || deptRes.data || []);
         if (userRes.success) setAgents(userRes.data?.items || userRes.data || []);
         if (qrRes.success) setQuickReplies(qrRes.data || []);
         if (contactsRes.success) setContacts(contactsRes.data?.items || contactsRes.data || []);
+        if (waStatusRes.success) setWhatsappStatus(waStatusRes.data);
+        if (waTplRes.success) setWhatsappTemplates(waTplRes.data || []);
       } catch (err) {
         console.error('Failed to load inbox metadata:', err);
       }
@@ -298,7 +314,6 @@ export const InboxPage = () => {
         const items = res.data?.items || [];
         setConversations(items);
 
-        // Select the first conversation if none is selected
         if (!selectedConvId && items.length > 0) {
           setSelectedConvId(items[0].id);
         }
@@ -329,7 +344,6 @@ export const InboxPage = () => {
     try {
       setLoadingChat(true);
 
-      // Join Socket Room
       const socket = getSocket();
       if (socket) {
         socket.emit('conversation:join', { conversationId: id });
@@ -347,7 +361,6 @@ export const InboxPage = () => {
       if (noteRes.success) setNotes(noteRes.data?.items || []);
       if (actRes.success) setActivityHistory(actRes.data || []);
 
-      // Mark conversation as read internally
       await api.post(`/conversations/${id}/read`);
       setConversations((prev) =>
         prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
@@ -380,7 +393,7 @@ export const InboxPage = () => {
     }, 100);
   };
 
-  // Filtered Conversations for Tabs (client-side tabs like unread, urgent)
+  // Filtered Conversations for Tabs
   const filteredConversations = useMemo(() => {
     return conversations.filter((conv) => {
       if (activeTab === 'unread' && (!conv.unreadCount || conv.unreadCount <= 0)) return false;
@@ -389,7 +402,24 @@ export const InboxPage = () => {
     });
   }, [conversations, activeTab]);
 
-  // 5. Operations: Claim Conversation
+  // 24-Hour Customer Service Window Calculation Helper
+  const windowStatus = useMemo(() => {
+    if (!conversationDetails?.lastInboundMessageAt) {
+      return { isOpen: false, text: 'No customer inbound message' };
+    }
+    const lastTime = new Date(conversationDetails.lastInboundMessageAt).getTime();
+    const expiresAt = lastTime + 24 * 60 * 60 * 1000;
+    const diff = expiresAt - Date.now();
+
+    if (diff <= 0) {
+      return { isOpen: false, text: '24h Window Expired — Template Required' };
+    }
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return { isOpen: true, text: `24h Window Active (${hours}h ${mins}m remaining)` };
+  }, [conversationDetails]);
+
+  // Operations: Claim Conversation
   const handleClaimConversation = async () => {
     if (!selectedConvId) return;
     try {
@@ -407,7 +437,7 @@ export const InboxPage = () => {
     }
   };
 
-  // 6. Operations: Assign Agent
+  // Operations: Assign Agent
   const handleAssignAgent = async () => {
     if (!selectedConvId || !assignUserId) return;
     try {
@@ -427,7 +457,7 @@ export const InboxPage = () => {
     }
   };
 
-  // 7. Operations: Department Transfer
+  // Operations: Department Transfer
   const handleTransferDepartment = async (e) => {
     e.preventDefault();
     if (!selectedConvId || !transferForm.targetDepartmentId) return;
@@ -449,7 +479,6 @@ export const InboxPage = () => {
         setShowTransferModal(false);
         setTransferForm({ targetDepartmentId: '', assignedToUserId: '', reason: '', handoverNote: '' });
 
-        // If current user is not part of target department, selection will be cleared
         const isPrivileged = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
         if (!isPrivileged && user?.departmentId !== payload.targetDepartmentId) {
           setSelectedConvId(null);
@@ -466,7 +495,7 @@ export const InboxPage = () => {
     }
   };
 
-  // 8. Operations: Update Status
+  // Operations: Update Status
   const handleStatusChange = async (newStatus) => {
     if (!selectedConvId || conversationDetails?.status === newStatus) return;
     try {
@@ -486,7 +515,7 @@ export const InboxPage = () => {
     }
   };
 
-  // 9. Operations: Update Priority
+  // Operations: Update Priority
   const handlePriorityChange = async (newPriority) => {
     if (!selectedConvId || conversationDetails?.priority === newPriority) return;
     try {
@@ -506,7 +535,7 @@ export const InboxPage = () => {
     }
   };
 
-  // 10. Operations: Send Message or Internal Note
+  // Operations: Send Message or Internal Note
   const handleSendMessage = async (e) => {
     if (e) e.preventDefault();
     if (!selectedConvId || !composerText.trim()) return;
@@ -526,55 +555,63 @@ export const InboxPage = () => {
           setNotes((prev) => [res.data, ...prev]);
         }
       } else {
-        const res = await api.post(`/conversations/${selectedConvId}/messages`, {
+        // Send WhatsApp outbound text
+        const res = await api.post(`/conversations/${selectedConvId}/send-text`, {
           text: textToSend,
-          direction: 'OUTBOUND',
-          type: 'TEXT',
         });
         if (res.success) {
           setMessages((prev) => [...prev, res.data]);
           scrollToBottom();
+          showToast('WhatsApp message sent', 'success');
         }
       }
     } catch (err) {
       console.error('Failed to submit message/note:', err);
-      showToast(err.message || 'Failed to deliver message', 'error');
+      // If 422 outside window, prompt template modal
+      if (err.statusCode === 422 || err.code === 'OUTSIDE_24H_WINDOW' || err.message?.includes('Outside 24-hour')) {
+        showToast('24h Window Expired: Please choose an approved WhatsApp template', 'warning');
+        setShowTemplateModal(true);
+      } else {
+        showToast(err.message || 'Failed to deliver message', 'error');
+      }
     }
   };
 
-  // 11. Create New Conversation from modal
-  const handleCreateNewConversation = async (e) => {
+  // Operations: Send Pre-Approved WhatsApp Template
+  const handleSendTemplate = async (e) => {
     e.preventDefault();
-    if (!newConvForm.contactId) return;
+    if (!selectedConvId || !selectedTemplateName) return;
 
     try {
       setActionLoading(true);
-      const res = await api.post('/conversations', {
-        contactId: newConvForm.contactId,
-        departmentId: newConvForm.departmentId || undefined,
-        priority: newConvForm.priority,
+      const activeTpl = whatsappTemplates.find((t) => t.name === selectedTemplateName);
+
+      // Build components parameters
+      const parameters = [];
+      const varKeys = Object.keys(templateVariables).sort();
+      varKeys.forEach((key) => {
+        parameters.push({ type: 'text', text: templateVariables[key] || '' });
+      });
+
+      const components =
+        parameters.length > 0 ? [{ type: 'body', parameters }] : [];
+
+      const res = await api.post(`/conversations/${selectedConvId}/send-template`, {
+        templateName: selectedTemplateName,
+        languageCode: activeTpl?.language || 'en_US',
+        components,
       });
 
       if (res.success) {
-        showToast('Conversation initialized', 'success');
-        setShowNewConvModal(false);
-        const newConv = res.data;
-
-        // If initial message provided, send it
-        if (newConvForm.initialMessage.trim()) {
-          await api.post(`/conversations/${newConv.id}/messages`, {
-            text: newConvForm.initialMessage.trim(),
-            direction: 'OUTBOUND',
-            type: 'TEXT',
-          });
-        }
-
-        setNewConvForm({ contactId: '', departmentId: '', priority: 'NORMAL', initialMessage: '' });
-        await fetchConversations();
-        setSelectedConvId(newConv.id);
+        setMessages((prev) => [...prev, res.data]);
+        setShowTemplateModal(false);
+        setSelectedTemplateName('');
+        setTemplateVariables({});
+        scrollToBottom();
+        showToast(`Template "${selectedTemplateName}" sent successfully`, 'success');
       }
     } catch (err) {
-      showToast(err.message || 'Failed to create conversation', 'error');
+      showToast(err.message || 'Failed to dispatch WhatsApp template', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -594,11 +631,10 @@ export const InboxPage = () => {
     setShowQuickReplyMenu(false);
   };
 
-  // Merged Chronological Timeline (Messages + Notes + Handover Events)
+  // Merged Chronological Timeline
   const unifiedTimeline = useMemo(() => {
     const list = [];
 
-    // Add messages
     messages.forEach((msg) => {
       list.push({
         type: 'message',
@@ -608,7 +644,6 @@ export const InboxPage = () => {
       });
     });
 
-    // Add internal notes
     notes.forEach((note) => {
       list.push({
         type: 'note',
@@ -618,7 +653,6 @@ export const InboxPage = () => {
       });
     });
 
-    // Add transfer events from conversationDetails.transfers
     if (conversationDetails?.transfers) {
       conversationDetails.transfers.forEach((tr) => {
         list.push({
@@ -643,6 +677,8 @@ export const InboxPage = () => {
               ? 'bg-rose-500/90 text-white'
               : toastMessage.type === 'success'
               ? 'bg-emerald-500/90 text-white'
+              : toastMessage.type === 'warning'
+              ? 'bg-amber-500/90 text-slate-950 font-bold'
               : 'bg-slate-800/90 text-slate-200 border border-slate-700'
           }`}
         >
@@ -650,6 +686,8 @@ export const InboxPage = () => {
             <AlertCircle className="w-4 h-4" />
           ) : toastMessage.type === 'success' ? (
             <CheckCircle2 className="w-4 h-4" />
+          ) : toastMessage.type === 'warning' ? (
+            <AlertTriangle className="w-4 h-4" />
           ) : (
             <Sparkles className="w-4 h-4 text-brand-400" />
           )}
@@ -675,15 +713,28 @@ export const InboxPage = () => {
                   title={socketConnected ? 'Real-Time Connected' : 'Disconnected'}
                 />
               </div>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => setShowNewConvModal(true)}
-                className="gap-1.5 py-1 px-2.5 text-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>New</span>
-              </Button>
+
+              {/* WhatsApp Cloud API Mode Badge */}
+              <div className="flex items-center space-x-2">
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                    whatsappStatus?.mode === 'production'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                  }`}
+                >
+                  Meta: {whatsappStatus?.mode || 'Mock'}
+                </span>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => setShowNewConvModal(true)}
+                  className="gap-1.5 py-1 px-2.5 text-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New</span>
+                </Button>
+              </div>
             </div>
 
             {/* Search Input */}
@@ -814,10 +865,8 @@ export const InboxPage = () => {
                       </div>
                     </div>
 
-                    {/* Last Message Snippet */}
                     <p className="text-xs text-slate-400 mt-2 truncate line-clamp-1">{lastSnippet}</p>
 
-                    {/* Badges & Meta Row */}
                     <div className="flex items-center justify-between mt-2.5 pt-1.5 border-t border-slate-800/40 text-[10px]">
                       <div className="flex items-center space-x-1.5 truncate">
                         <span className={`px-1.5 py-0.5 rounded font-medium border text-[9px] ${statusMeta.bg}`}>
@@ -897,7 +946,6 @@ export const InboxPage = () => {
 
                 {/* Header Action Controls */}
                 <div className="flex items-center space-x-2">
-                  {/* Claim Button if unassigned */}
                   {!conversationDetails.assignedToUserId && (
                     <Button
                       size="sm"
@@ -911,7 +959,6 @@ export const InboxPage = () => {
                     </Button>
                   )}
 
-                  {/* Assign / Reassign Button */}
                   <Button
                     size="sm"
                     variant="secondary"
@@ -924,7 +971,6 @@ export const InboxPage = () => {
                     <span>{conversationDetails.assignedToUserId ? 'Reassign' : 'Assign'}</span>
                   </Button>
 
-                  {/* Transfer Department Button */}
                   <Button
                     size="sm"
                     variant="secondary"
@@ -935,7 +981,6 @@ export const InboxPage = () => {
                     <span>Transfer</span>
                   </Button>
 
-                  {/* Status Dropdown */}
                   <select
                     value={conversationDetails.status}
                     onChange={(e) => handleStatusChange(e.target.value)}
@@ -947,7 +992,6 @@ export const InboxPage = () => {
                     <option value="CLOSED">🔴 Closed</option>
                   </select>
 
-                  {/* Priority Dropdown */}
                   <select
                     value={conversationDetails.priority || 'NORMAL'}
                     onChange={(e) => handlePriorityChange(e.target.value)}
@@ -959,7 +1003,6 @@ export const InboxPage = () => {
                     <option value="URGENT">🔥 Urgent</option>
                   </select>
 
-                  {/* Right Panel Toggle */}
                   <button
                     onClick={() => setShowRightPanel(!showRightPanel)}
                     className={`p-1.5 rounded-lg border transition-colors ${
@@ -974,16 +1017,36 @@ export const InboxPage = () => {
                 </div>
               </div>
 
-              {/* Notice Banner: Phase 3 Internal Testing Disclaimer */}
-              <div className="bg-slate-900/40 border-b border-slate-800/80 px-6 py-1.5 flex items-center justify-between text-[11px] text-slate-400">
-                <div className="flex items-center space-x-1.5">
-                  <Shield className="w-3.5 h-3.5 text-brand-400" />
-                  <span>Phase 3 Shared Team Inbox: Internal test messaging & handover operational. Live WhatsApp Cloud API activates in Phase 4.</span>
+              {/* 24-Hour Customer Service Window Awareness Banner */}
+              <div
+                className={`px-6 py-2 border-b flex items-center justify-between text-xs transition-colors ${
+                  windowStatus.isOpen
+                    ? 'bg-emerald-950/30 border-emerald-900/50 text-emerald-300'
+                    : 'bg-amber-950/40 border-amber-900/50 text-amber-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <Clock className={`w-4 h-4 ${windowStatus.isOpen ? 'text-emerald-400' : 'text-amber-400'}`} />
+                  <span className="font-semibold">{windowStatus.text}</span>
+                  <span className="text-[11px] opacity-80 hidden md:inline">
+                    {windowStatus.isOpen
+                      ? '• Free-form text and media enabled'
+                      : '• Free-form restricted by Meta policy. Send an approved template.'}
+                  </span>
                 </div>
-                <div className="flex items-center space-x-2 text-[10px] text-slate-500">
-                  <span>Channel: {conversationDetails.channel || 'WHATSAPP'}</span>
-                  <span>•</span>
-                  <span>ID: {conversationDetails.id.slice(0, 8)}</span>
+
+                <div className="flex items-center space-x-2">
+                  <Button
+                    size="sm"
+                    variant={windowStatus.isOpen ? 'secondary' : 'primary'}
+                    onClick={() => setShowTemplateModal(true)}
+                    className={`py-1 px-2.5 text-xs ${
+                      !windowStatus.isOpen ? 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold' : ''
+                    }`}
+                  >
+                    <LayoutTemplate className="w-3.5 h-3.5 mr-1" />
+                    <span>Send WhatsApp Template</span>
+                  </Button>
                 </div>
               </div>
 
@@ -1000,11 +1063,10 @@ export const InboxPage = () => {
                   <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-2">
                     <MessageSquare className="w-10 h-10 text-slate-800" />
                     <p className="text-sm font-medium">No messages or notes in this conversation yet</p>
-                    <p className="text-xs">Type a message or internal note below to begin.</p>
+                    <p className="text-xs">Send a WhatsApp message or internal note below.</p>
                   </div>
                 ) : (
                   unifiedTimeline.map((item) => {
-                    // CASE 1: Inbound / Outbound WhatsApp Messages
                     if (item.type === 'message') {
                       const msg = item.data;
                       const isInbound = msg.direction === 'INBOUND';
@@ -1027,6 +1089,13 @@ export const InboxPage = () => {
                               </p>
                             )}
 
+                            {msg.type === 'TEMPLATE' && (
+                              <div className="mb-1.5 flex items-center space-x-1 text-[10px] bg-brand-700/60 px-2 py-0.5 rounded text-brand-200 font-mono">
+                                <LayoutTemplate className="w-3 h-3" />
+                                <span>WhatsApp Template Message</span>
+                              </div>
+                            )}
+
                             <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
 
                             <div
@@ -1037,11 +1106,29 @@ export const InboxPage = () => {
                               <span>
                                 {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
+
+                              {/* Delivery Status Indicator */}
                               {!isInbound && (
-                                <span className="flex items-center space-x-0.5">
-                                  <span>•</span>
-                                  <span>{msg.status || 'LOCAL_SAVED'}</span>
-                                  <Check className="w-3 h-3 inline" />
+                                <span className="flex items-center space-x-1 ml-1">
+                                  {msg.status === 'READ' ? (
+                                    <span className="flex items-center text-cyan-300" title="Read by Customer">
+                                      <CheckCheck className="w-3.5 h-3.5" />
+                                    </span>
+                                  ) : msg.status === 'DELIVERED' ? (
+                                    <span className="flex items-center text-slate-300" title="Delivered to WhatsApp">
+                                      <CheckCheck className="w-3.5 h-3.5" />
+                                    </span>
+                                  ) : msg.status === 'SENT' ? (
+                                    <span className="flex items-center text-slate-300" title="Sent to Meta Cloud API">
+                                      <Check className="w-3.5 h-3.5" />
+                                    </span>
+                                  ) : msg.status === 'FAILED' ? (
+                                    <span className="flex items-center text-rose-300 font-bold" title={msg.failureReason || 'Failed'}>
+                                      <AlertTriangle className="w-3.5 h-3.5" />
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] text-slate-400">Draft</span>
+                                  )}
                                 </span>
                               )}
                             </div>
@@ -1050,7 +1137,6 @@ export const InboxPage = () => {
                       );
                     }
 
-                    // CASE 2: Internal Team Notes
                     if (item.type === 'note') {
                       const note = item.data;
                       return (
@@ -1074,7 +1160,6 @@ export const InboxPage = () => {
                       );
                     }
 
-                    // CASE 3: Department Transfer Handover System Event
                     if (item.type === 'transfer') {
                       const tr = item.data;
                       return (
@@ -1161,7 +1246,6 @@ export const InboxPage = () => {
 
               {/* Message & Note Composer */}
               <div className="p-4 border-t border-slate-800 bg-slate-900/60 backdrop-blur-md">
-                {/* Composer Mode Toggle & Quick Reply Triggers */}
                 <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center space-x-2">
                     <button
@@ -1173,7 +1257,7 @@ export const InboxPage = () => {
                       }`}
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
-                      <span>WhatsApp Reply</span>
+                      <span>WhatsApp Cloud API</span>
                     </button>
 
                     <button
@@ -1191,17 +1275,23 @@ export const InboxPage = () => {
 
                   <div className="flex items-center space-x-2">
                     <button
+                      onClick={() => setShowTemplateModal(true)}
+                      className="text-xs text-indigo-400 hover:text-indigo-300 px-2.5 py-1 rounded bg-indigo-500/10 border border-indigo-500/20 flex items-center space-x-1"
+                    >
+                      <LayoutTemplate className="w-3 h-3" />
+                      <span>Templates</span>
+                    </button>
+
+                    <button
                       onClick={() => setShowQuickReplyMenu(!showQuickReplyMenu)}
                       className="text-xs text-brand-400 hover:text-brand-300 px-2 py-1 rounded bg-brand-500/10 border border-brand-500/20 flex items-center space-x-1"
                     >
                       <Sparkles className="w-3 h-3" />
                       <span>Quick Replies (/)</span>
                     </button>
-                    <span className="text-[11px] text-slate-500 hidden sm:inline">Enter to send</span>
                   </div>
                 </div>
 
-                {/* Input Area */}
                 <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
                   <input
                     type="text"
@@ -1216,11 +1306,15 @@ export const InboxPage = () => {
                     placeholder={
                       composerMode === 'NOTE'
                         ? 'Type internal note visible only to team members...'
-                        : 'Type customer WhatsApp message (or type / for quick replies)...'
+                        : !windowStatus.isOpen
+                        ? '24h window expired: Click "Send WhatsApp Template" above to message...'
+                        : 'Type WhatsApp reply to customer (or type / for quick replies)...'
                     }
                     className={`flex-1 bg-slate-950 border rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-colors ${
                       composerMode === 'NOTE'
                         ? 'border-amber-500/40 focus:border-amber-500'
+                        : !windowStatus.isOpen
+                        ? 'border-amber-500/30 bg-amber-950/10'
                         : 'border-slate-800 focus:border-brand-500'
                     }`}
                   />
@@ -1247,11 +1341,10 @@ export const InboxPage = () => {
         </div>
 
         {/* ============================================================== */}
-        {/* RIGHT COLUMN: Customer Details & Handover History              */}
+        {/* RIGHT COLUMN: Customer Details & Context Drawer                */}
         {/* ============================================================== */}
         {showRightPanel && selectedConvId && conversationDetails && (
           <div className="w-80 border-l border-slate-800 flex flex-col shrink-0 bg-slate-900/90 overflow-y-auto">
-            {/* Customer Profile Header */}
             <div className="p-5 border-b border-slate-800 text-center">
               <div className="w-16 h-16 rounded-full bg-brand-500/10 border-2 border-brand-500/30 flex items-center justify-center font-bold text-xl text-brand-400 mx-auto mb-3 shadow-lg">
                 {conversationDetails.contact?.firstName?.[0] || 'C'}
@@ -1272,7 +1365,6 @@ export const InboxPage = () => {
               </div>
             </div>
 
-            {/* Contact Information */}
             <div className="p-5 border-b border-slate-800 space-y-3">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact Info</h4>
               <div className="space-y-2 text-xs">
@@ -1290,7 +1382,6 @@ export const InboxPage = () => {
                 </div>
               </div>
 
-              {/* Contact Tags */}
               <div className="pt-2">
                 <p className="text-[11px] font-semibold text-slate-500 mb-1.5">Tags</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -1307,7 +1398,6 @@ export const InboxPage = () => {
               </div>
             </div>
 
-            {/* Linked Pipeline Leads */}
             <div className="p-5 border-b border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Linked Leads</h4>
@@ -1332,7 +1422,6 @@ export const InboxPage = () => {
               </div>
             </div>
 
-            {/* Open Follow-up Tasks */}
             <div className="p-5 border-b border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Follow-up Tasks</h4>
@@ -1354,7 +1443,6 @@ export const InboxPage = () => {
               </div>
             </div>
 
-            {/* Department Transfer & Handover Logs */}
             <div className="p-5 space-y-3">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Transfer Audit</h4>
               <div className="space-y-2">
@@ -1377,6 +1465,119 @@ export const InboxPage = () => {
           </div>
         )}
       </div>
+
+      {/* ============================================================== */}
+      {/* MODAL: WhatsApp Pre-Approved Template Picker                   */}
+      {/* ============================================================== */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <LayoutTemplate className="w-5 h-5 text-brand-400" />
+                <h3 className="text-base font-bold text-white">Send WhatsApp Template</h3>
+              </div>
+              <button onClick={() => setShowTemplateModal(false)} className="text-slate-400 hover:text-slate-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendTemplate} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Select Approved Template <span className="text-rose-400">*</span>
+                </label>
+                <select
+                  required
+                  value={selectedTemplateName}
+                  onChange={(e) => {
+                    setSelectedTemplateName(e.target.value);
+                    setTemplateVariables({});
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                >
+                  <option value="">Choose template...</option>
+                  {whatsappTemplates.map((tpl) => (
+                    <option key={tpl.id} value={tpl.name}>
+                      {tpl.name} ({tpl.category} - {tpl.language})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedTemplateName && (
+                <>
+                  {/* Template Details & Variables */}
+                  {(() => {
+                    const currentTpl = whatsappTemplates.find((t) => t.name === selectedTemplateName);
+                    if (!currentTpl) return null;
+
+                    // Match all {{1}}, {{2}} placeholders
+                    const placeholders = currentTpl.body.match(/\{\{\d+\}\}/g) || [];
+
+                    let previewText = currentTpl.body;
+                    placeholders.forEach((ph, idx) => {
+                      const val = templateVariables[`var_${idx + 1}`] || ph;
+                      previewText = previewText.replace(ph, val);
+                    });
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                            Live Preview
+                          </p>
+                          <p className="text-slate-200 whitespace-pre-wrap">{previewText}</p>
+                        </div>
+
+                        {placeholders.length > 0 && (
+                          <div className="space-y-2">
+                            <label className="block text-xs font-semibold text-slate-300">
+                              Template Parameters ({placeholders.length} variable{placeholders.length > 1 ? 's' : ''})
+                            </label>
+                            {placeholders.map((ph, idx) => (
+                              <div key={ph} className="flex items-center space-x-2">
+                                <span className="text-xs font-mono text-slate-400 w-12">{ph}:</span>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder={`Value for ${ph}`}
+                                  value={templateVariables[`var_${idx + 1}`] || ''}
+                                  onChange={(e) =>
+                                    setTemplateVariables({
+                                      ...templateVariables,
+                                      [`var_${idx + 1}`]: e.target.value,
+                                    })
+                                  }
+                                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
+                <Button variant="secondary" size="sm" onClick={() => setShowTemplateModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={actionLoading || !selectedTemplateName}
+                >
+                  {actionLoading ? 'Dispatching...' : 'Send Approved Template'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ============================================================== */}
       {/* MODAL 1: Department Transfer Dialog                            */}

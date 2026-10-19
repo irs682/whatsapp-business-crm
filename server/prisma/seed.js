@@ -303,6 +303,43 @@ async function main() {
   }
   console.log(`  Quick Replies synced: ${defaultQuickReplies.length} templates.`);
 
+  // 10. Default Meta WhatsApp Templates
+  const defaultTemplates = [
+    {
+      name: 'welcome_greeting',
+      category: 'UTILITY',
+      language: 'en_US',
+      body: 'Hello {{1}}, welcome to Stech Solutions! How can we assist you today?',
+      status: 'APPROVED',
+      metaTemplateId: 'meta_tpl_welcome_greeting',
+    },
+    {
+      name: 'support_followup',
+      category: 'UTILITY',
+      language: 'en_US',
+      body: 'Hello {{1}}, following up on your recent inquiry regarding {{2}}. Please let us know if you need further help.',
+      status: 'APPROVED',
+      metaTemplateId: 'meta_tpl_support_followup',
+    },
+    {
+      name: 'order_status_update',
+      category: 'UTILITY',
+      language: 'en_US',
+      body: 'Hi {{1}}, your order #{{2}} status is now: {{3}}.',
+      status: 'APPROVED',
+      metaTemplateId: 'meta_tpl_order_update',
+    },
+  ];
+
+  for (const tpl of defaultTemplates) {
+    await prisma.messageTemplate.upsert({
+      where: { name: tpl.name },
+      update: { status: tpl.status, body: tpl.body },
+      create: tpl,
+    });
+  }
+  console.log(`  Meta WhatsApp Templates synced: ${defaultTemplates.length} approved templates.`);
+
   console.log('✅ Seed completed successfully!');
 }
 

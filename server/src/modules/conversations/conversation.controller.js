@@ -82,6 +82,33 @@ class ConversationController {
       next(error);
     }
   }
+
+  async sendText(req, res, next) {
+    try {
+      const whatsAppService = require('../../integrations/whatsapp/whatsapp.service');
+      const message = await whatsAppService.sendOutboundText(req.params.id, req.body.text, req.user);
+      return ApiResponse.created(res, 'WhatsApp message sent successfully', message);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async sendTemplate(req, res, next) {
+    try {
+      const whatsAppService = require('../../integrations/whatsapp/whatsapp.service');
+      const { templateName, languageCode, components } = req.body;
+      const message = await whatsAppService.sendOutboundTemplate(
+        req.params.id,
+        templateName,
+        languageCode,
+        components,
+        req.user
+      );
+      return ApiResponse.created(res, 'WhatsApp template sent successfully', message);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new ConversationController();

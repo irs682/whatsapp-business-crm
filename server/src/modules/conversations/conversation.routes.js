@@ -83,4 +83,16 @@ router.post(
   (req, res, next) => conversationController.markAsRead(req, res, next)
 );
 
+router.post(
+  '/:id/send-text',
+  requirePermissions(PERMISSIONS.CONVERSATIONS_REPLY),
+  (req, res, next) => conversationController.sendText(req, res, next)
+);
+
+router.post(
+  '/:id/send-template',
+  requirePermissions(PERMISSIONS.CONVERSATIONS_REPLY),
+  (req, res, next) => conversationController.sendTemplate(req, res, next)
+);
+
 module.exports = router;
