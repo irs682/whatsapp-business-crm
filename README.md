@@ -210,9 +210,9 @@ npm run test
 - [x] **Phase 1 — Core Architecture & Foundation**
 - [x] **Phase 2 — Core CRM Implementation (Users, Departments, Contacts, E.164, CSV Import, Leads, Tags, Notes, Tasks, Dashboard)**
 - [x] **Phase 3 — Shared Team Inbox & Realtime WebSockets (3-Column Layout, Agent Claiming, Dept Routing & Transfers, Quick Replies, Unread Tracking)**
-- [x] **Phase 4 — Official Meta WhatsApp Cloud API Integration (Webhooks, HMAC Verification, 24h Window, Templates, Status Receipts, 44 Tests Passing)**
-- [ ] **Phase 5 — Marketing Campaigns & Audience Segmentation**
-- [ ] **Phase 6 — Analytics, SLA Tracking & Custom Reports**
+- [x] **Phase 4 — Official Meta WhatsApp Cloud API Integration (Webhooks, HMAC Verification, 24h Window, Templates, Status Receipts)**
+- [x] **Phase 5 — Marketing Campaigns & Audience Segmentation (State Machine, Durable Dispatch Queue, Consent & Suppression, Attribution)**
+- [x] **Phase 6 — Advanced Reporting, Analytics, Audit Logging & Management Intelligence (FRT/RT Engine, Executive Dashboard, Formula-Safe Exports, 71 Passing Tests)**
 - [ ] **Phase 7 — Production Hardening, Docker & Penetration Testing**
 
-Refer to [docs/project-roadmap.md](file:///c:/Users/PMLS/Desktop/CRM/whatsapp-business-crm/docs/project-roadmap.md) for detailed task breakdowns.
+Refer to [docs/project-roadmap.md](file:///c:/Users/PMLS/Desktop/CRM/whatsapp-business-crm/docs/project-roadmap.md) and [docs/phase-6-completion-report.md](file:///c:/Users/PMLS/Desktop/CRM/whatsapp-business-crm/docs/phase-6-completion-report.md) for detailed task breakdowns.
