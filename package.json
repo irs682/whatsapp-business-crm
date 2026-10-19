@@ -18,6 +18,8 @@
     "format": "prettier --write \"**/*.{js,jsx,json,md}\"",
     "prisma:generate": "npm run prisma:generate --workspace=server",
     "prisma:migrate": "npm run prisma:migrate --workspace=server",
+    "prisma:deploy": "npm run prisma:deploy --workspace=server",
+    "prisma:status": "npm run prisma:status --workspace=server",
     "prisma:seed": "npm run prisma:seed --workspace=server",
     "prisma:studio": "npm run prisma:studio --workspace=server"
   },

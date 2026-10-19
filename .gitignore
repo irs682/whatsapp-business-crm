@@ -39,12 +39,15 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Database / SQLite scratch
+# Database / SQLite scratch / backups
 *.sqlite
 *.sqlite3
 *.db
 prisma/*.db
 prisma/*.db-journal
+backups/
+*.dump
+*.backup
 
 # Temporary and cache
 tmp/
