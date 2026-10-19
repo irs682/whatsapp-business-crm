@@ -5,7 +5,9 @@ const authRoutes = require('../modules/auth/auth.routes');
 const userRoutes = require('../modules/users/users.routes');
 const departmentRoutes = require('../modules/departments/department.routes');
 const contactRoutes = require('../modules/contacts/contact.routes');
+const tagRoutes = require('../modules/tags/tag.routes');
 const leadRoutes = require('../modules/leads/lead.routes');
+const dashboardRoutes = require('../modules/dashboard/dashboard.routes');
 
 // Placeholder Roadmap Modules
 const roleRoutes = require('../modules/roles/role.routes');
@@ -42,7 +44,9 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/departments', departmentRoutes);
 router.use('/contacts', contactRoutes);
+router.use('/tags', tagRoutes);
 router.use('/leads', leadRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 // Mount Roadmap Modules
 router.use('/roles', roleRoutes);

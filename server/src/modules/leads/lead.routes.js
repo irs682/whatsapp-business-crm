@@ -4,6 +4,8 @@ const {
   createLeadSchema,
   updateLeadSchema,
   listLeadQuerySchema,
+  createPipelineStageSchema,
+  updatePipelineStageSchema,
 } = require('./lead.validation');
 const validate = require('../../middleware/validate.middleware');
 const authenticate = require('../../middleware/auth.middleware');
@@ -13,6 +15,27 @@ const PERMISSIONS = require('../../constants/permissions');
 const router = Router();
 
 router.use(authenticate);
+
+// Pipeline Stages routes (placed before /:id to prevent route shadowing)
+router.get(
+  '/stages',
+  requirePermissions(PERMISSIONS.LEADS_READ),
+  (req, res, next) => leadController.listStages(req, res, next)
+);
+
+router.post(
+  '/stages',
+  requirePermissions(PERMISSIONS.LEADS_CREATE),
+  validate(createPipelineStageSchema),
+  (req, res, next) => leadController.createStage(req, res, next)
+);
+
+router.patch(
+  '/stages/:id',
+  requirePermissions(PERMISSIONS.LEADS_UPDATE),
+  validate(updatePipelineStageSchema),
+  (req, res, next) => leadController.updateStage(req, res, next)
+);
 
 router.get(
   '/',

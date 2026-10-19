@@ -17,6 +17,7 @@ class LeadRepository {
               lastName: true,
               phone: true,
               email: true,
+              company: true,
             },
           },
           assignedToUser: {
@@ -33,6 +34,7 @@ class LeadRepository {
               name: true,
             },
           },
+          pipelineStage: true,
         },
       }),
     ]);
@@ -54,7 +56,9 @@ class LeadRepository {
           },
         },
         department: true,
+        pipelineStage: true,
         notes: {
+          where: { deletedAt: null },
           include: {
             author: {
               select: { id: true, firstName: true, lastName: true },
@@ -63,7 +67,22 @@ class LeadRepository {
           orderBy: { createdAt: 'desc' },
         },
         tasks: {
+          where: { deletedAt: null },
+          include: {
+            assignedToUser: {
+              select: { id: true, firstName: true, lastName: true },
+            },
+          },
           orderBy: { dueDate: 'asc' },
+        },
+        activityLogs: {
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          include: {
+            actor: {
+              select: { id: true, firstName: true, lastName: true },
+            },
+          },
         },
       },
     });
@@ -76,6 +95,7 @@ class LeadRepository {
         contact: true,
         assignedToUser: true,
         department: true,
+        pipelineStage: true,
       },
     });
   }
@@ -88,6 +108,7 @@ class LeadRepository {
         contact: true,
         assignedToUser: true,
         department: true,
+        pipelineStage: true,
       },
     });
   }
@@ -98,6 +119,45 @@ class LeadRepository {
       data: {
         deletedAt: new Date(),
       },
+    });
+  }
+
+  // Pipeline Stages Repository
+  async findAllStages() {
+    return prisma.leadPipelineStage.findMany({
+      orderBy: { order: 'asc' },
+      include: {
+        _count: {
+          select: {
+            leads: true,
+          },
+        },
+      },
+    });
+  }
+
+  async findStageById(id) {
+    return prisma.leadPipelineStage.findUnique({
+      where: { id },
+    });
+  }
+
+  async findStageByName(name) {
+    return prisma.leadPipelineStage.findUnique({
+      where: { name },
+    });
+  }
+
+  async createStage(data) {
+    return prisma.leadPipelineStage.create({
+      data,
+    });
+  }
+
+  async updateStage(id, data) {
+    return prisma.leadPipelineStage.update({
+      where: { id },
+      data,
     });
   }
 }

@@ -1,5 +1,19 @@
-const TASK_CONSTANTS = {
-  MODULE_NAME: 'tasks',
+const TASK_STATUS = {
+  TODO: 'TODO',
+  PENDING: 'PENDING',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
 };
 
-module.exports = TASK_CONSTANTS;
+const TASK_PRIORITY = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  URGENT: 'URGENT',
+};
+
+module.exports = {
+  TASK_STATUS,
+  TASK_PRIORITY,
+};
