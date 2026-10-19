@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const whatsAppConfig = require('./whatsapp.config');
+const whatsAppClient = require('./whatsapp.client');
 const whatsAppService = require('./whatsapp.service');
 const prisma = require('../../config/prisma');
 const authenticate = require('../../middleware/auth.middleware');
@@ -56,6 +57,19 @@ router.get('/templates', async (req, res, next) => {
       orderBy: { createdAt: 'desc' },
     });
     return ApiResponse.success(res, 'WhatsApp templates retrieved', templates);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v1/integrations/whatsapp/templates/meta
+ * Retrieves genuine WhatsApp message templates and approval status directly from Meta Graph API
+ */
+router.get('/templates/meta', async (req, res, next) => {
+  try {
+    const metaTemplates = await whatsAppClient.fetchMetaTemplates();
+    return ApiResponse.success(res, 'Meta WhatsApp templates retrieved directly from Meta Graph API', metaTemplates);
   } catch (err) {
     next(err);
   }

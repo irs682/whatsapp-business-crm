@@ -191,6 +191,52 @@ class WhatsAppClient {
     });
     return response.data;
   }
+
+  /**
+   * Fetch WhatsApp message templates directly from Meta Graph API
+   */
+  async fetchMetaTemplates() {
+    if (this.config.mode === 'mock' || !this.config.accessToken || !this.config.businessAccountId) {
+      return {
+        data: [
+          {
+            name: 'welcome_greeting',
+            status: 'APPROVED',
+            category: 'UTILITY',
+            language: 'en_US',
+            id: 'meta_mock_tpl_welcome_greeting',
+          },
+          {
+            name: 'support_followup',
+            status: 'APPROVED',
+            category: 'UTILITY',
+            language: 'en_US',
+            id: 'meta_mock_tpl_support_followup',
+          },
+          {
+            name: 'order_status_update',
+            status: 'APPROVED',
+            category: 'UTILITY',
+            language: 'en_US',
+            id: 'meta_mock_tpl_order_update',
+          },
+        ],
+        _mode: 'mock',
+      };
+    }
+
+    return this.executeWithRetry(async () => {
+      const response = await this.http.get(
+        `/${this.config.apiVersion}/${this.config.businessAccountId}/message_templates`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.config.accessToken}`,
+          },
+        }
+      );
+      return response.data;
+    });
+  }
 }
 
 module.exports = new WhatsAppClient();
