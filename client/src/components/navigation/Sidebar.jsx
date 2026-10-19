@@ -25,6 +25,7 @@ const navItems = [
   { name: 'Users & Agents', path: ROUTES.USERS, icon: UserCog },
   { name: 'Campaigns', path: ROUTES.CAMPAIGNS, icon: Megaphone },
   { name: 'Analytics & Reports', path: ROUTES.REPORTS, icon: BarChart3 },
+  { name: 'Audit Logs', path: ROUTES.AUDIT_LOGS, icon: ShieldCheck },
   { name: 'Settings', path: ROUTES.SETTINGS, icon: Settings },
 ];
 

@@ -9,6 +9,7 @@ export const ROUTES = {
   USERS: '/users',
   CAMPAIGNS: '/campaigns',
   REPORTS: '/reports',
+  AUDIT_LOGS: '/audit-logs',
   SETTINGS: '/settings',
 };
 
