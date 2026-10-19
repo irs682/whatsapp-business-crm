@@ -208,7 +208,7 @@ npm run test
 ## 10. Development Roadmap
 
 - [x] **Phase 1 — Core Architecture & Foundation**
-- [ ] **Phase 2 — CRM Core (Notes, Tasks, Advanced Tags)**
+- [x] **Phase 2 — Core CRM Implementation (Users, Departments, Contacts, E.164, CSV Import, Leads, Tags, Notes, Tasks, Dashboard)**
 - [ ] **Phase 3 — Shared Team Inbox & Realtime WebSockets**
 - [ ] **Phase 4 — WhatsApp Cloud API Production Dispatch**
 - [ ] **Phase 5 — Marketing Campaigns & Audience Segmentation**
