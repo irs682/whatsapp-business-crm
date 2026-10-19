@@ -22,7 +22,7 @@ class ContactController {
 
   async create(req, res, next) {
     try {
-      const contact = await contactService.createContact(req.body);
+      const contact = await contactService.createContact(req.body, req.user);
       return ApiResponse.created(res, 'Contact created successfully', contact);
     } catch (error) {
       next(error);
@@ -31,8 +31,27 @@ class ContactController {
 
   async update(req, res, next) {
     try {
-      const contact = await contactService.updateContact(req.params.id, req.body);
+      const contact = await contactService.updateContact(req.params.id, req.body, req.user);
       return ApiResponse.success(res, 'Contact updated successfully', contact);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async importContacts(req, res, next) {
+    try {
+      const result = await contactService.importContacts(req.body, req.user);
+      const message = req.body.preview ? 'CSV import preview generated' : 'Contacts imported successfully';
+      return ApiResponse.success(res, message, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getActivity(req, res, next) {
+    try {
+      const activities = await contactService.getContactActivity(req.params.id, req.user);
+      return ApiResponse.success(res, 'Contact activity history fetched successfully', activities);
     } catch (error) {
       next(error);
     }
@@ -40,7 +59,7 @@ class ContactController {
 
   async delete(req, res, next) {
     try {
-      await contactService.deleteContact(req.params.id);
+      await contactService.deleteContact(req.params.id, req.user);
       return ApiResponse.success(res, 'Contact archived successfully');
     } catch (error) {
       next(error);

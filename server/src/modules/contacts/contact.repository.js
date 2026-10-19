@@ -10,6 +10,15 @@ class ContactRepository {
         take: limit,
         orderBy,
         include: {
+          owner: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          department: {
+            select: { id: true, name: true },
+          },
+          contactTags: {
+            include: { tag: true },
+          },
           _count: {
             select: {
               conversations: true,
@@ -29,26 +38,56 @@ class ContactRepository {
     return prisma.contact.findFirst({
       where: { id, deletedAt: null },
       include: {
+        owner: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+        department: {
+          select: { id: true, name: true },
+        },
+        contactTags: {
+          include: { tag: true },
+        },
         conversations: {
           orderBy: { createdAt: 'desc' },
-          take: 5,
+          take: 10,
         },
         leads: {
           orderBy: { createdAt: 'desc' },
+          include: {
+            assignedToUser: {
+              select: { id: true, firstName: true, lastName: true },
+            },
+          },
         },
         notes: {
+          where: { deletedAt: null },
           include: {
             author: {
-              select: { id: true, firstName: true, lastName: true },
+              select: { id: true, firstName: true, lastName: true, email: true },
             },
           },
           orderBy: { createdAt: 'desc' },
         },
         tasks: {
+          where: { deletedAt: null },
+          include: {
+            assignedToUser: {
+              select: { id: true, firstName: true, lastName: true },
+            },
+          },
           orderBy: { dueDate: 'asc' },
         },
         consents: {
           orderBy: { createdAt: 'desc' },
+        },
+        activityLogs: {
+          orderBy: { createdAt: 'desc' },
+          take: 25,
+          include: {
+            actor: {
+              select: { id: true, firstName: true, lastName: true },
+            },
+          },
         },
       },
     });
@@ -66,16 +105,100 @@ class ContactRepository {
     });
   }
 
-  async create(data) {
-    return prisma.contact.create({
-      data,
+  async findExistingPhones(phoneList) {
+    if (!phoneList || phoneList.length === 0) return [];
+    const existing = await prisma.contact.findMany({
+      where: {
+        phone: { in: phoneList },
+        deletedAt: null,
+      },
+      select: { phone: true, id: true, firstName: true, lastName: true },
+    });
+    return existing;
+  }
+
+  async create(data, tagIds = []) {
+    return prisma.$transaction(async (tx) => {
+      const contact = await tx.contact.create({
+        data,
+      });
+
+      if (tagIds && tagIds.length > 0) {
+        await tx.contactTag.createMany({
+          data: tagIds.map((tagId) => ({
+            contactId: contact.id,
+            tagId,
+          })),
+        });
+      }
+
+      return contact;
     });
   }
 
-  async update(id, data) {
-    return prisma.contact.update({
-      where: { id },
-      data,
+  async update(id, data, tagIds) {
+    return prisma.$transaction(async (tx) => {
+      const contact = await tx.contact.update({
+        where: { id },
+        data,
+      });
+
+      if (tagIds !== undefined) {
+        await tx.contactTag.deleteMany({
+          where: { contactId: id },
+        });
+
+        if (tagIds.length > 0) {
+          await tx.contactTag.createMany({
+            data: tagIds.map((tagId) => ({
+              contactId: id,
+              tagId,
+            })),
+          });
+        }
+      }
+
+      return contact;
+    });
+  }
+
+  async bulkCreate(contactsData) {
+    return prisma.$transaction(async (tx) => {
+      const createdContacts = [];
+      for (const item of contactsData) {
+        const { tagNames, ...contactFields } = item;
+        const contact = await tx.contact.create({
+          data: contactFields,
+        });
+
+        if (tagNames && tagNames.length > 0) {
+          for (const tName of tagNames) {
+            const tag = await tx.tag.upsert({
+              where: { name: tName.trim() },
+              update: {},
+              create: { name: tName.trim() },
+            });
+            await tx.contactTag.create({
+              data: { contactId: contact.id, tagId: tag.id },
+            });
+          }
+        }
+
+        createdContacts.push(contact);
+      }
+      return createdContacts;
+    });
+  }
+
+  async getActivity(contactId) {
+    return prisma.activityLog.findMany({
+      where: { contactId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        actor: {
+          select: { id: true, firstName: true, lastName: true },
+        },
+      },
     });
   }
 

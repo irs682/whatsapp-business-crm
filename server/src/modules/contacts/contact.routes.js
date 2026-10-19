@@ -4,6 +4,7 @@ const {
   createContactSchema,
   updateContactSchema,
   listContactQuerySchema,
+  importContactsSchema,
 } = require('./contact.validation');
 const validate = require('../../middleware/validate.middleware');
 const authenticate = require('../../middleware/auth.middleware');
@@ -21,10 +22,23 @@ router.get(
   (req, res, next) => contactController.list(req, res, next)
 );
 
+router.post(
+  '/import',
+  requirePermissions(PERMISSIONS.CONTACTS_CREATE),
+  validate(importContactsSchema),
+  (req, res, next) => contactController.importContacts(req, res, next)
+);
+
 router.get(
   '/:id',
   requirePermissions(PERMISSIONS.CONTACTS_READ),
   (req, res, next) => contactController.getById(req, res, next)
+);
+
+router.get(
+  '/:id/activity',
+  requirePermissions(PERMISSIONS.CONTACTS_READ),
+  (req, res, next) => contactController.getActivity(req, res, next)
 );
 
 router.post(
