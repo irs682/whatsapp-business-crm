@@ -15,6 +15,20 @@ describe('Health and System Endpoints', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('healthy');
     expect(res.body.service).toBe('whatsapp-business-crm-api');
+    expect(res.body.dependencies.database.status).toBe('healthy');
+  });
+
+  it('GET /api/v1/health/live should return alive status', async () => {
+    const res = await request(app).get('/api/v1/health/live');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('alive');
+  });
+
+  it('GET /api/v1/health/ready should return database ready status', async () => {
+    const res = await request(app).get('/api/v1/health/ready');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ready');
+    expect(res.body.database).toBe('connected');
   });
 
   it('GET /api/v1/unknown-route should return 404 ApiError response', async () => {

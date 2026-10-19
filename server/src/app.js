@@ -3,6 +3,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const env = require('./config/env');
 const corsOptions = require('./config/cors');
+const correlationId = require('./middleware/correlationId.middleware');
 const requestLogger = require('./middleware/requestLogger.middleware');
 const { apiRateLimiter } = require('./middleware/rateLimiter.middleware');
 const errorHandler = require('./middleware/errorHandler.middleware');
@@ -10,6 +11,9 @@ const notFound = require('./middleware/notFound.middleware');
 const apiRoutes = require('./routes');
 
 const app = express();
+
+// Request Correlation ID tracking
+app.use(correlationId);
 
 // Security HTTP headers
 app.use(helmet());

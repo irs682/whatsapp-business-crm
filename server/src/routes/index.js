@@ -30,15 +30,9 @@ const whatsappWebhookRoutes = require('../integrations/whatsapp/whatsapp.webhook
 
 const router = Router();
 
-// Health Check Endpoint
-router.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    service: 'whatsapp-business-crm-api',
-  });
-});
+// Health & Observability Endpoints
+const healthRoutes = require('./health.routes');
+router.use('/health', healthRoutes);
 
 // Mount Routes
 router.use('/auth', authRoutes);
