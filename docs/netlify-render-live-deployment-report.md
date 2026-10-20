@@ -93,11 +93,10 @@ Because automated subagent browser execution paused at the Render dashboard auth
 | `DATABASE_URL` | *Select "Add from Database" > `stech-crm-db` > "Internal Connection String"* | Zero-latency internal DB connection |
 | `JWT_SECRET` | *(Generate a 64-char random hex string)* | Authentication tokens |
 | `WHATSAPP_MODE` | `mock` | Mock Meta WhatsApp driver (no charges) |
-| `WHATSAPP_ENABLED` | `true` | Enables WhatsApp routes in mock mode |
+| `WHATSAPP_ENABLED` | `false` | Disabled for initial staging until mock verification |
 | `CAMPAIGN_WORKER_ENABLED` | `false` | Prevents background queue spam |
 | `CLIENT_URL` | `https://stech-whatsapp-crm.netlify.app` *(update after Netlify create)* | Express CORS allowed origin |
 | `ALLOWED_ORIGINS` | `https://stech-whatsapp-crm.netlify.app` *(update after Netlify create)* | Socket.IO allowed origin |
-| `ALLOW_STAGING_SEED` | `false` *(set to `true` temporarily only during seed)* | Production seed guardrail |
 
 5. Click **Create Web Service**.
 6. Wait for the build to finish. Once live, copy your public backend URL:  
@@ -105,20 +104,25 @@ Because automated subagent browser execution paused at the Render dashboard auth
 
 ---
 
-### Step 3: Seed Initial Staging Data (Controlled Execution)
-Once the Web Service deploys and migrations run automatically:
-1. In the Render Dashboard, navigate to `stech-crm-server` > **Shell** tab.
-2. Run:
+### Step 3: Controlled Initial Staging Data Seeding
+> [!NOTE]
+> **Render Free Shell Restriction:**  
+> Render Free instances do not include an interactive SSH/Shell tab. To prevent credentials from running on every automatic server restart, do NOT add seed commands to the service start command.
+
+Instead, execute the one-time seed from your workstation using the **External Database URL**:
+1. Copy the **External Database URL** from `stech-crm-db` dashboard (Render adds `?sslmode=require`).
+2. Run the seed script locally pointing to the remote Render staging database with a strong custom admin password:
    ```bash
-   ALLOW_STAGING_SEED=true node prisma/seed.js
+   DATABASE_URL="<RENDER_EXTERNAL_DATABASE_URL>" ALLOW_STAGING_SEED=true ADMIN_EMAIL="admin@stech.local" ADMIN_PASSWORD="<STRONG_UNIQUE_PASSWORD>" node prisma/seed.js
    ```
 3. This creates:
    - System Roles (`SUPER_ADMIN`, `ADMIN`, `MANAGER`, `AGENT`)
    - 31 granular permissions
    - Default departments (`Customer Support`, `Sales & Inquiries`, `Billing & Finance`)
-   - Super Admin account and Support Agent account
+   - Secure Administrator account with the provided unique password
    - Standard pipeline stages, tags, quick replies, and Meta WhatsApp templates.
-4. Keep the Shell closed and ensure `ALLOW_STAGING_SEED` is disabled or unset in environment variables.
+4. If `ADMIN_PASSWORD` is omitted, `seed.js` automatically generates a secure 32-character cryptographic password and outputs it to the console.
+5. The application will never re-seed or overwrite passwords on subsequent server restarts.
 
 ---
 

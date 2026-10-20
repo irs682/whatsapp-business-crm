@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
@@ -188,10 +189,15 @@ async function main() {
     console.log(`  Department ready: ${dept.name}`);
   }
 
-  // 5. Default Super Admin User
-  const adminEmail = 'admin@crm.local';
+  // 5. Super Admin User
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.SEED_ADMIN_EMAIL || 'admin@crm.local';
+  const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD || (
+    process.env.NODE_ENV === 'production'
+      ? crypto.randomBytes(16).toString('hex') + '!Aa1'
+      : 'Admin123!'
+  );
   const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash('Admin123!', salt);
+  const passwordHash = await bcrypt.hash(adminPassword, salt);
 
   const adminUser = await prisma.user.upsert({
     where: { email: adminEmail },
@@ -210,7 +216,12 @@ async function main() {
       status: 'ACTIVE',
     },
   });
-  console.log(`  Initial Admin created: ${adminUser.email} (Password: Admin123!)`);
+  console.log(`  Initial Admin created: ${adminUser.email}`);
+  if (process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD) {
+    console.log(`  [SECURITY NOTICE] Custom Admin password applied from environment.`);
+  } else {
+    console.log(`  [SECURITY NOTICE] Generated Admin credentials: ${adminUser.email} / ${adminPassword}`);
+  }
 
   // Assign Admin to primary Support department
   if (depts[0]) {
@@ -222,8 +233,13 @@ async function main() {
   }
 
   // 6. Default Support Agent User
-  const agentEmail = 'agent@crm.local';
-  const agentPasswordHash = await bcrypt.hash('Agent123!', salt);
+  const agentEmail = process.env.AGENT_EMAIL || process.env.SEED_AGENT_EMAIL || 'agent@crm.local';
+  const agentPassword = process.env.AGENT_PASSWORD || process.env.SEED_AGENT_PASSWORD || (
+    process.env.NODE_ENV === 'production'
+      ? crypto.randomBytes(16).toString('hex') + '!Aa1'
+      : 'Agent123!'
+  );
+  const agentPasswordHash = await bcrypt.hash(agentPassword, salt);
   const agentUser = await prisma.user.upsert({
     where: { email: agentEmail },
     update: {
@@ -241,7 +257,7 @@ async function main() {
       status: 'ACTIVE',
     },
   });
-  console.log(`  Agent created: ${agentUser.email} (Password: Agent123!)`);
+  console.log(`  Agent ready: ${agentUser.email}`);
 
   if (depts[0]) {
     await prisma.userDepartment.upsert({
