@@ -18,8 +18,8 @@ if (env.NODE_ENV !== 'test') {
   campaignQueue.startWorkers();
 }
 
-const server = httpServer.listen(PORT, () => {
-  logger.info(`🚀 WhatsApp Business CRM Server running on port ${PORT} [${env.NODE_ENV}]`);
+const server = httpServer.listen(PORT, '0.0.0.0', () => {
+  logger.info(`🚀 WhatsApp Business CRM Server running on port ${PORT} [${env.NODE_ENV}] (bound to 0.0.0.0)`);
   logger.info(`📡 API endpoint: http://localhost:${PORT}${env.API_PREFIX}`);
   logger.info(`⚡ Socket.IO real-time engine active`);
 });

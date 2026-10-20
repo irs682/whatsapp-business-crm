@@ -9,10 +9,12 @@ services:
     plan: free
     buildCommand: npm install && npx prisma generate
     startCommand: npx prisma migrate deploy && node src/server.js
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /api/v1/health/ready
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 20.18.0
       - key: PORT
         value: 10000
       - key: API_PREFIX
@@ -29,6 +31,8 @@ services:
         sync: false
       - key: WHATSAPP_MODE
         value: mock
+      - key: WHATSAPP_ENABLED
+        value: "false"
       - key: CAMPAIGN_WORKER_ENABLED
         value: "false"
 
