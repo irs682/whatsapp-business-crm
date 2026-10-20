@@ -7,16 +7,19 @@ const corsOptions = {
       return callback(null, true);
     }
 
+    const sanitize = (url) => (typeof url === 'string' ? url.trim().replace(/\/+$/, '') : '');
+    const cleanOrigin = sanitize(origin);
+
     const allowedOrigins = [
-      env.CLIENT_URL,
+      sanitize(env.CLIENT_URL),
       'http://localhost:5173',
       'http://127.0.0.1:5173',
-      ...env.ALLOWED_ORIGINS,
-    ];
+      ...((env.ALLOWED_ORIGINS || []).map(sanitize)),
+    ].filter(Boolean);
 
     // In development mode, allow localhost, 127.0.0.1, and local private network IPs
     const isDevelopment = env.NODE_ENV === 'development';
-    const isAllowed = allowedOrigins.includes(origin) || isDevelopment;
+    const isAllowed = allowedOrigins.includes(cleanOrigin) || isDevelopment;
 
     if (isAllowed) {
       callback(null, true);

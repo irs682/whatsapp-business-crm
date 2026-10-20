@@ -1,0 +1,39 @@
+# Render Blueprint for Stech WhatsApp Business CRM Backend & PostgreSQL
+# Free tier compliant: Node.js Web Service + Free PostgreSQL
+
+services:
+  - type: web
+    name: stech-crm-server
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx prisma migrate deploy && node src/server.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: API_PREFIX
+        value: /api/v1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stech-crm-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: WHATSAPP_MODE
+        value: mock
+      - key: CAMPAIGN_WORKER_ENABLED
+        value: "false"
+
+databases:
+  - name: stech-crm-db
+    plan: free
+    databaseName: whatsapp_crm
+    user: postgres

@@ -4,8 +4,8 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('SECURITY VIOLATION: Refusing to seed default test credentials in production environment.');
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_STAGING_SEED !== 'true') {
+    throw new Error('SECURITY VIOLATION: Refusing to seed default test credentials in production environment. Set ALLOW_STAGING_SEED=true to override for staging.');
   }
 
   console.log('🌱 Starting database seed...');

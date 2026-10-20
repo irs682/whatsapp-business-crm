@@ -8,17 +8,20 @@ const env = require('../config/env');
 let io = null;
 
 const initSocket = (httpServer) => {
+  const sanitize = (url) => (typeof url === 'string' ? url.trim().replace(/\/+$/, '') : '');
+
   const allowedOrigins = [
-    env.CLIENT_URL,
+    sanitize(env.CLIENT_URL),
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    ...(env.ALLOWED_ORIGINS || []),
-  ];
+    ...((env.ALLOWED_ORIGINS || []).map(sanitize)),
+  ].filter(Boolean);
 
   io = new Server(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin) || env.NODE_ENV === 'development') {
+        const cleanOrigin = sanitize(origin);
+        if (!origin || allowedOrigins.includes(cleanOrigin) || env.NODE_ENV === 'development') {
           return callback(null, true);
         }
         return callback(new Error(`Origin ${origin} not allowed by Socket.IO CORS policy`));
