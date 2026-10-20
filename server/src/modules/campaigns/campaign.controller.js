@@ -7,7 +7,7 @@ const {
   scheduleCampaignSchema,
   campaignQuerySchema,
 } = require('./campaign.validation');
-const ApiResponse = require('../../utils/ApiResponse');
+const ApiResponse = require('../../utils/apiResponse');
 
 class CampaignController {
   async list(req, res, next) {

@@ -1,6 +1,6 @@
 const segmentService = require('./segment.service');
 const { createSegmentSchema, updateSegmentSchema, previewFilterSchema } = require('./segment.validation');
-const ApiResponse = require('../../../utils/ApiResponse');
+const ApiResponse = require('../../../utils/apiResponse');
 
 class SegmentController {
   async list(req, res, next) {

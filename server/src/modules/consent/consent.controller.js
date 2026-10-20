@@ -1,6 +1,6 @@
 const consentService = require('./consent.service');
 const { recordConsentSchema } = require('./consent.validation');
-const ApiResponse = require('../../utils/ApiResponse');
+const ApiResponse = require('../../utils/apiResponse');
 
 class ConsentController {
   async list(req, res, next) {

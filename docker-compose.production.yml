@@ -33,7 +33,7 @@ services:
     container_name: crm_prod_server
     restart: always
     env_file:
-      - ./server/.env.production
+      - ${SERVER_ENV_FILE:-./server/.env.production}
     depends_on:
       postgres:
         condition: service_healthy

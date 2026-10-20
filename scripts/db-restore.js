@@ -69,24 +69,45 @@ try {
   }
 
   // Create disposable target DB if not exists
+  const containerName = process.env.PG_CONTAINER || 'crm_postgres';
+  let useDocker = false;
+  let activeContainer = containerName;
+
   try {
-    execSync(`docker --context default exec bakesuite-db psql -U postgres -c "DROP DATABASE IF EXISTS ${targetDbArg};"`, { stdio: 'pipe' });
-    execSync(`docker --context default exec bakesuite-db psql -U postgres -c "CREATE DATABASE ${targetDbArg};"`, { stdio: 'pipe' });
-  } catch (e) {
-    execSync(`psql -U postgres -c "DROP DATABASE IF EXISTS ${targetDbArg};"`, { stdio: 'pipe' });
-    execSync(`psql -U postgres -c "CREATE DATABASE ${targetDbArg};"`, { stdio: 'pipe' });
+    execSync(`docker exec ${containerName} pg_isready`, { stdio: 'pipe' });
+    useDocker = true;
+  } catch {
+    try {
+      execSync('docker exec crm_prod_postgres pg_isready', { stdio: 'pipe' });
+      useDocker = true;
+      activeContainer = 'crm_prod_postgres';
+    } catch {
+      useDocker = false;
+    }
   }
 
-  // Pipe restore
-  let restoreCmd = `Get-Content "${backupFileArg}" | docker --context default exec -i bakesuite-db psql -U postgres -d ${targetDbArg}`;
-  execSync(`powershell -Command "${restoreCmd}"`, { stdio: 'pipe' });
-
-  // Post-restore verification
-  const checkRes = execSync(
-    `docker --context default exec bakesuite-db psql -U postgres -d ${targetDbArg} -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"`,
-    { encoding: 'utf8' }
-  );
-  const tableCount = parseInt(checkRes.trim(), 10);
+  let tableCount = 0;
+  if (useDocker) {
+    execSync(`docker exec ${activeContainer} psql -U postgres -c "DROP DATABASE IF EXISTS ${targetDbArg};"`, { stdio: 'pipe' });
+    execSync(`docker exec ${activeContainer} psql -U postgres -c "CREATE DATABASE ${targetDbArg};"`, { stdio: 'pipe' });
+    let restoreCmd = `Get-Content "${backupFileArg}" | docker exec -i ${activeContainer} psql -U postgres -d ${targetDbArg}`;
+    execSync(`powershell -Command "${restoreCmd}"`, { stdio: 'pipe' });
+    const checkRes = execSync(
+      `docker exec ${activeContainer} psql -U postgres -d ${targetDbArg} -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"`,
+      { encoding: 'utf8' }
+    );
+    tableCount = parseInt(checkRes.trim(), 10);
+  } else {
+    execSync(`psql -U postgres -c "DROP DATABASE IF EXISTS ${targetDbArg};"`, { stdio: 'pipe' });
+    execSync(`psql -U postgres -c "CREATE DATABASE ${targetDbArg};"`, { stdio: 'pipe' });
+    let restoreCmd = `Get-Content "${backupFileArg}" | psql -U postgres -d ${targetDbArg}`;
+    execSync(`powershell -Command "${restoreCmd}"`, { stdio: 'pipe' });
+    const checkRes = execSync(
+      `psql -U postgres -d ${targetDbArg} -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"`,
+      { encoding: 'utf8' }
+    );
+    tableCount = parseInt(checkRes.trim(), 10);
+  }
 
   console.log('Restoration completed successfully:');
   console.log(` - Target Database: ${targetDbArg}`);

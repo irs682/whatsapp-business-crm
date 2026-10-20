@@ -39,6 +39,7 @@
     "morgan": "^1.10.0",
     "pg": "^8.23.1",
     "socket.io": "^4.8.4",
+    "axios": "^1.7.9",
     "zod": "^3.24.2"
   },
   "devDependencies": {

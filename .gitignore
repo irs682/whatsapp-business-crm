@@ -14,11 +14,12 @@ build/
 
 # Environment and secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!.env*.example
 *.pem
+*.key
+*.crt
 
 # Logs
 npm-debug.log*

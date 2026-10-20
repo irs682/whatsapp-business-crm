@@ -1,6 +1,6 @@
 const automationService = require('./automation.service');
 const { createRuleSchema, updateRuleSchema } = require('./automation.validation');
-const ApiResponse = require('../../../utils/ApiResponse');
+const ApiResponse = require('../../../utils/apiResponse');
 
 class AutomationController {
   async list(req, res, next) {

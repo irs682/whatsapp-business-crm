@@ -3,12 +3,26 @@ const { verifyToken } = require('../utils/jwt');
 const prisma = require('../config/prisma');
 const logger = require('../utils/logger');
 
+const env = require('../config/env');
+
 let io = null;
 
 const initSocket = (httpServer) => {
+  const allowedOrigins = [
+    env.CLIENT_URL,
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    ...(env.ALLOWED_ORIGINS || []),
+  ];
+
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || env.NODE_ENV === 'development') {
+          return callback(null, true);
+        }
+        return callback(new Error(`Origin ${origin} not allowed by Socket.IO CORS policy`));
+      },
       credentials: true,
     },
     transports: ['websocket', 'polling'],

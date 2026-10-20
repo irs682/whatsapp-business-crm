@@ -44,12 +44,18 @@ console.log(`Starting PostgreSQL backup for database: ${dbName} at ${dbHost}:${d
 
 try {
   // Execute pg_dump via docker container if available or system pg_dump
+  const containerName = process.env.PG_CONTAINER || 'crm_postgres';
   let dumpCommand = '';
   try {
-    execSync('docker --context default exec bakesuite-db pg_dump --version', { stdio: 'pipe' });
-    dumpCommand = `docker --context default exec bakesuite-db pg_dump -U ${dbUser} --clean --if-exists ${dbName} > "${backupFile}"`;
+    execSync(`docker exec ${containerName} pg_dump --version`, { stdio: 'pipe' });
+    dumpCommand = `docker exec ${containerName} pg_dump -U ${dbUser} --clean --if-exists ${dbName} > "${backupFile}"`;
   } catch {
-    dumpCommand = `pg_dump -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} --clean --if-exists -f "${backupFile}"`;
+    try {
+      execSync('docker exec crm_prod_postgres pg_dump --version', { stdio: 'pipe' });
+      dumpCommand = `docker exec crm_prod_postgres pg_dump -U ${dbUser} --clean --if-exists ${dbName} > "${backupFile}"`;
+    } catch {
+      dumpCommand = `pg_dump -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} --clean --if-exists -f "${backupFile}"`;
+    }
   }
 
   execSync(dumpCommand, { stdio: 'inherit', env: { ...process.env, PGPASSWORD: parsedUrl.password } });
