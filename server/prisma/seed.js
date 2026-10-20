@@ -191,36 +191,41 @@ async function main() {
 
   // 5. Super Admin User
   const adminEmail = process.env.ADMIN_EMAIL || process.env.SEED_ADMIN_EMAIL || 'admin@crm.local';
-  const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD || (
-    process.env.NODE_ENV === 'production'
-      ? crypto.randomBytes(16).toString('hex') + '!Aa1'
-      : 'Admin123!'
-  );
-  const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash(adminPassword, salt);
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
 
-  const adminUser = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {
-      roleId: roleMap.SUPER_ADMIN.id,
-      firstName: 'System',
-      lastName: 'Administrator',
-    },
-    create: {
-      email: adminEmail,
-      passwordHash,
-      firstName: 'System',
-      lastName: 'Administrator',
-      phone: '+10000000000',
-      roleId: roleMap.SUPER_ADMIN.id,
-      status: 'ACTIVE',
-    },
-  });
-  console.log(`  Initial Admin created: ${adminUser.email}`);
-  if (process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD) {
-    console.log(`  [SECURITY NOTICE] Custom Admin password applied from environment.`);
+  let adminUser;
+  if (!existingAdmin) {
+    const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD;
+    if (!adminPassword || adminPassword.length < 12) {
+      throw new Error(
+        'SECURITY REQUIREMENT: ADMIN_PASSWORD environment variable (minimum 12 characters) must be provided to create the initial administrator account.'
+      );
+    }
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(adminPassword, salt);
+
+    adminUser = await prisma.user.create({
+      data: {
+        email: adminEmail,
+        passwordHash,
+        firstName: 'System',
+        lastName: 'Administrator',
+        phone: '+10000000000',
+        roleId: roleMap.SUPER_ADMIN.id,
+        status: 'ACTIVE',
+      },
+    });
+    console.log(`  Initial Admin created: ${adminUser.email}`);
   } else {
-    console.log(`  [SECURITY NOTICE] Generated Admin credentials: ${adminUser.email} / ${adminPassword}`);
+    adminUser = await prisma.user.update({
+      where: { email: adminEmail },
+      data: {
+        roleId: roleMap.SUPER_ADMIN.id,
+        firstName: 'System',
+        lastName: 'Administrator',
+      },
+    });
+    console.log(`  Admin account preserved: ${adminUser.email} (password unchanged)`);
   }
 
   // Assign Admin to primary Support department
@@ -234,30 +239,41 @@ async function main() {
 
   // 6. Default Support Agent User
   const agentEmail = process.env.AGENT_EMAIL || process.env.SEED_AGENT_EMAIL || 'agent@crm.local';
-  const agentPassword = process.env.AGENT_PASSWORD || process.env.SEED_AGENT_PASSWORD || (
-    process.env.NODE_ENV === 'production'
-      ? crypto.randomBytes(16).toString('hex') + '!Aa1'
-      : 'Agent123!'
-  );
-  const agentPasswordHash = await bcrypt.hash(agentPassword, salt);
-  const agentUser = await prisma.user.upsert({
-    where: { email: agentEmail },
-    update: {
-      roleId: roleMap.AGENT.id,
-      firstName: 'Alex',
-      lastName: 'Agent',
-    },
-    create: {
-      email: agentEmail,
-      passwordHash: agentPasswordHash,
-      firstName: 'Alex',
-      lastName: 'Agent',
-      phone: '+10000000002',
-      roleId: roleMap.AGENT.id,
-      status: 'ACTIVE',
-    },
-  });
-  console.log(`  Agent ready: ${agentUser.email}`);
+  const existingAgent = await prisma.user.findUnique({ where: { email: agentEmail } });
+
+  let agentUser;
+  if (!existingAgent) {
+    const agentPassword = process.env.AGENT_PASSWORD || process.env.SEED_AGENT_PASSWORD || (
+      process.env.NODE_ENV === 'production'
+        ? crypto.randomBytes(16).toString('hex') + '!Aa1'
+        : 'Agent123!Secure'
+    );
+    const salt = await bcrypt.genSalt(10);
+    const agentPasswordHash = await bcrypt.hash(agentPassword, salt);
+
+    agentUser = await prisma.user.create({
+      data: {
+        email: agentEmail,
+        passwordHash: agentPasswordHash,
+        firstName: 'Alex',
+        lastName: 'Agent',
+        phone: '+10000000002',
+        roleId: roleMap.AGENT.id,
+        status: 'ACTIVE',
+      },
+    });
+    console.log(`  Support Agent created: ${agentUser.email}`);
+  } else {
+    agentUser = await prisma.user.update({
+      where: { email: agentEmail },
+      data: {
+        roleId: roleMap.AGENT.id,
+        firstName: 'Alex',
+        lastName: 'Agent',
+      },
+    });
+    console.log(`  Agent account preserved: ${agentUser.email} (password unchanged)`);
+  }
 
   if (depts[0]) {
     await prisma.userDepartment.upsert({

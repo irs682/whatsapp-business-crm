@@ -6,8 +6,8 @@ import Input from '../components/common/Input';
 
 export const LoginPage = () => {
   const { login } = useAuth();
-  const [email, setEmail] = useState('admin@crm.local');
-  const [password, setPassword] = useState('Admin123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -51,7 +51,7 @@ export const LoginPage = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            placeholder="admin@crm.local"
+            placeholder="name@company.com"
           />
 
           <Input
@@ -72,12 +72,6 @@ export const LoginPage = () => {
             {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
           </Button>
         </form>
-
-        <div className="mt-6 pt-6 border-t border-slate-800 text-center">
-          <p className="text-xs text-slate-500">
-            Initial Seed Admin: <span className="text-slate-400 font-mono">admin@crm.local</span> / <span className="text-slate-400 font-mono">Admin123!</span>
-          </p>
-        </div>
       </div>
     </div>
   );
