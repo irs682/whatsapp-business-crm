@@ -1,0 +1,97 @@
+# ==============================================================================
+# Stech WhatsApp Business CRM — Free Cloud Tier Docker Compose Stack
+# Target: Oracle Cloud Infrastructure Always Free (ARM64/x86_64) or Cloudflare Tunnel
+# Cost: $0.00 / month | Zero-trust networking | Non-root execution
+# ==============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crm_free_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-whatsapp_crm}
+    volumes:
+      - crm_free_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-whatsapp_crm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - crm_free_backend_net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: crm_free_server
+    restart: always
+    env_file:
+      - ${SERVER_ENV_FILE:-./server/.env.free}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - crm_free_backend_net
+      - crm_free_frontend_net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${CLIENT_API_URL:-/api/v1}
+    container_name: crm_free_client
+    restart: always
+    ports:
+      - "${HTTP_BIND_IP:-0.0.0.0}:${HTTP_PORT:-80}:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - crm_free_frontend_net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+volumes:
+  crm_free_pgdata:
+    name: crm_free_pgdata
+
+networks:
+  crm_free_backend_net:
+    name: crm_free_backend_net
+    internal: true
+  crm_free_frontend_net:
+    name: crm_free_frontend_net
