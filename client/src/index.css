@@ -27,3 +27,15 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(16, 185, 129, 0.6);
 }
+
+/* Suppress Netlify badge iframe globally across all routes */
+#nl-badge-frame,
+iframe[title*="Netlify"],
+iframe[src*="netlify"],
+[data-netlify-drawer],
+.netlify-badge {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

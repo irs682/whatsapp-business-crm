@@ -86,9 +86,6 @@ export const DashboardPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight">Executive CRM Dashboard</h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Real PostgreSQL database metrics filtered by your authorized department boundaries
-          </p>
         </div>
         <div className="flex items-center space-x-2">
           <Badge color="emerald">CRM Core Active</Badge>
